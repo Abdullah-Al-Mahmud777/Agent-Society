@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-	title: "Agent Builder",
-	description: "Build, edit, and persist AI agents locally in a Next.js app.",
+	title: "Agent Society Builder",
+	description: "Build societies, manage agents, and persist everything locally in a Next.js app.",
 };
 
 export default function RootLayout({ children }) {

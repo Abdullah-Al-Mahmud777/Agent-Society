@@ -1,6 +1,6 @@
 
-import AgentBuilderShell from "./AgentBuilderShell";
+import SocietyBuilderShell from "./SocietyBuilderShell";
 
 export default function Page() {
-	return <AgentBuilderShell />;
+	return <SocietyBuilderShell />;
 }
