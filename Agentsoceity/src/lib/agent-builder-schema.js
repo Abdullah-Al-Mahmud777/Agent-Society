@@ -25,7 +25,24 @@ function createId() {
 		return globalThis.crypto.randomUUID();
 	}
 
-	return `agent-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+	// Use stable UUID generation without Date.now() or Math.random() during SSR
+	try {
+		if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+			return globalThis.crypto.randomUUID();
+		}
+		const array = new Uint8Array(16);
+		if (globalThis.crypto?.getRandomValues) {
+			globalThis.crypto.getRandomValues(array);
+		} else {
+			for (let i = 0; i < 16; i++) {
+				array[i] = Math.floor(Math.random() * 256);
+			}
+		}
+		return 'agent-' + Array.from(array).map((b) => b.toString(16).padStart(2, '0')).join('');
+	} catch {
+		// Fallback for edge cases
+		return 'agent-' + Math.random().toString(36).substr(2, 9);
+	}
 }
 
 export const agentInputSchema = z.object({

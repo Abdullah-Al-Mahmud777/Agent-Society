@@ -16,12 +16,44 @@ const storageFallback = {
 };
 
 const storage = createJSONStorage(() => {
-	if (typeof window === "undefined") {
+	if (typeof globalThis === 'undefined' || typeof globalThis.localStorage === 'undefined') {
 		return storageFallback;
 	}
 
 	return window.localStorage;
 });
+
+function createUniqueAgentId() {
+	if (globalThis.crypto?.randomUUID) {
+		return globalThis.crypto.randomUUID();
+	}
+
+	return `agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeAgents(agents) {
+	const seenIds = new Set();
+
+	return (agents ?? []).map((agent) => {
+		if (!seenIds.has(agent.id)) {
+			seenIds.add(agent.id);
+			return agent;
+		}
+
+		let nextId = createUniqueAgentId();
+		while (seenIds.has(nextId)) {
+			nextId = createUniqueAgentId();
+		}
+
+		seenIds.add(nextId);
+
+		return {
+			...agent,
+			id: nextId,
+			updatedAt: new Date().toISOString(),
+		};
+	});
+}
 
 function getNextSelection(agents, deletedId) {
 	if (!agents.length) {
@@ -81,8 +113,10 @@ export const useAgentBuilderStore = create(
 					return null;
 				}
 
+				const { id, createdAt, updatedAt, ...copySource } = source;
+
 				const duplicate = createAgentFromInput({
-					...source,
+					...copySource,
 					name: `${source.name} Copy`,
 				});
 
@@ -130,7 +164,39 @@ export const useAgentBuilderStore = create(
 		{
 			name: "agent-society-builder",
 			storage,
-			version: 1,
+			version: 2,
+			migrate: (persistedState) => {
+				if (!persistedState) {
+					return {
+						agents: starterAgents,
+						selectedAgentId: starterAgents[0]?.id ?? null,
+					};
+				}
+
+				const migratedAgents = normalizeAgents(persistedState.agents ?? starterAgents);
+				const selectedAgentId = migratedAgents.some((agent) => agent.id === persistedState.selectedAgentId)
+					? persistedState.selectedAgentId
+					: migratedAgents[0]?.id ?? null;
+
+				return {
+					...persistedState,
+					agents: migratedAgents,
+					selectedAgentId,
+				};
+			},
+			merge: (persistedState, currentState) => {
+				const mergedAgents = normalizeAgents(persistedState?.agents ?? currentState.agents);
+				const selectedAgentId = mergedAgents.some((agent) => agent.id === persistedState?.selectedAgentId)
+					? persistedState.selectedAgentId
+					: mergedAgents[0]?.id ?? null;
+
+				return {
+					...currentState,
+					...persistedState,
+					agents: mergedAgents,
+					selectedAgentId,
+				};
+			},
 			partialize: (state) => ({
 				agents: state.agents,
 				selectedAgentId: state.selectedAgentId,

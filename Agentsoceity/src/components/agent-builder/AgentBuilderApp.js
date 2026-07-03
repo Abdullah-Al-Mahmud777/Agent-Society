@@ -89,11 +89,10 @@ export default function AgentBuilderApp() {
 	};
 
 	const handleDeleteAgent = (agentId) => {
-		if (typeof window !== "undefined") {
-			const shouldDelete = window.confirm("Delete this agent? This cannot be undone.");
-			if (!shouldDelete) {
-				return;
-			}
+		if (typeof window === 'undefined') return;
+		const shouldDelete = window.confirm("Delete this agent? This cannot be undone.");
+		if (!shouldDelete) {
+			return;
 		}
 
 		deleteAgent(agentId);
