@@ -6,6 +6,7 @@ import AgentEditor from "./AgentEditor";
 import AgentList from "./AgentList";
 import { PROVIDER_LABELS } from "../../lib/agent-builder-schema";
 import { useAgentBuilderStore } from "../../store/agent-builder-store";
+import { useMemoryStore } from "../../store/memory-store";
 
 function StatCard({ label, value, subtext }) {
 	return (
@@ -38,8 +39,14 @@ export default function AgentBuilderApp() {
 	const toggleAgentEnabled = useAgentBuilderStore((state) => state.toggleAgentEnabled);
 	const resetAgents = useAgentBuilderStore((state) => state.resetAgents);
 
+	const getAgentMemories = useMemoryStore((state) => state.getAgentMemories);
+	const clearAgentMemories = useMemoryStore((state) => state.clearAgentMemories);
+	const clearAllMemories = useMemoryStore((state) => state.clearAllMemories);
+	const totalMemories = useMemoryStore((state) => state.memories.length);
+
 	useEffect(() => {
 		void useAgentBuilderStore.persist.rehydrate();
+		void useMemoryStore.persist.rehydrate();
 	}, []);
 
 	useEffect(() => {
@@ -186,6 +193,71 @@ export default function AgentBuilderApp() {
 								)}
 							</div>
 						</section>
+
+						{/* Memory panel */}
+						{selectedAgent && (() => {
+							const agentMemories = getAgentMemories(selectedAgent.id);
+							return (
+								<section className="rounded-[2rem] border border-violet-400/20 bg-violet-400/5 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+									<div className="flex items-start justify-between gap-4">
+										<div>
+											<p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-300/70">Long-term memory</p>
+											<h2 className="mt-2 text-xl font-semibold text-white">
+												{agentMemories.length} {agentMemories.length === 1 ? "memory" : "memories"}
+											</h2>
+											<p className="mt-2 text-sm leading-6 text-white/55">
+												{agentMemories.length > 0
+													? "Accumulated from past debates. Injected into this agent's context on relevant topics."
+													: "No memories yet. Run a council debate to start building this agent's experience."}
+											</p>
+										</div>
+										{agentMemories.length > 0 && (
+											<button
+												type="button"
+												onClick={() => clearAgentMemories(selectedAgent.id)}
+												className="rounded-full border border-rose-400/30 px-4 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-400/10"
+											>
+												Clear
+											</button>
+										)}
+									</div>
+
+									{agentMemories.length > 0 && (
+										<ul className="mt-5 space-y-2">
+											{agentMemories.map((m) => (
+												<li key={m.id} className="rounded-2xl border border-white/8 bg-black/15 px-4 py-3">
+													<div className="flex items-center gap-2">
+														<span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+															m.type === "episodic"
+																? "bg-cyan-400/15 text-cyan-300/80"
+																: "bg-violet-400/15 text-violet-300/80"
+														}`}>
+															{m.type}
+														</span>
+														<span className="text-[11px] text-white/30">
+															{new Date(m.createdAt).toLocaleDateString()}
+														</span>
+													</div>
+													<p className="mt-2 text-sm leading-6 text-white/70">{m.content}</p>
+												</li>
+											))}
+										</ul>
+									)}
+
+									{totalMemories > 0 && (
+										<div className="mt-4 flex justify-end">
+											<button
+												type="button"
+												onClick={clearAllMemories}
+												className="text-xs text-white/25 underline underline-offset-2 transition hover:text-white/50"
+											>
+												Clear all agent memories ({totalMemories})
+											</button>
+										</div>
+									)}
+								</section>
+							);
+						})()}
 					</div>
 				</section>
 			</div>

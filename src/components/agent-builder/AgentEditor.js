@@ -9,6 +9,8 @@ import {
 	ICON_OPTIONS,
 	PROVIDER_DEFAULT_MODELS,
 	PROVIDER_LABELS,
+	SPEAKING_STYLES,
+	SPEAKING_STYLE_LABELS,
 	agentInputSchema,
 	createAgentDefaults,
 } from "../../lib/agent-builder-schema";
@@ -31,6 +33,12 @@ function buildFormState(agent) {
 		icon: agent.icon,
 		color: agent.color,
 		isEnabled: agent.isEnabled,
+		riskAppetite: agent.riskAppetite ?? 0.5,
+		communicationStyle: agent.communicationStyle ?? 0.5,
+		creativity: agent.creativity ?? 0.5,
+		flexibility: agent.flexibility ?? 0.5,
+		coreValues: agent.coreValues ?? [],
+		speakingStyle: agent.speakingStyle ?? "formal",
 	};
 }
 
@@ -55,6 +63,79 @@ function FormField({ label, error, children, hint }) {
 			{children}
 			{error ? <p className="text-sm text-rose-300">{error}</p> : null}
 		</label>
+	);
+}
+
+function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-sm font-medium text-white/80">{label}</span>
+				<span className="text-xs tabular-nums text-white/35">{Math.round(value * 100)}%</span>
+			</div>
+			<input
+				type="range"
+				min="0"
+				max="1"
+				step="0.05"
+				value={value}
+				onChange={(e) => onChange(Number(e.target.value))}
+				className="w-full accent-cyan-300"
+			/>
+			<div className="flex justify-between text-[11px] text-white/35">
+				<span>{leftLabel}</span>
+				<span>{rightLabel}</span>
+			</div>
+		</div>
+	);
+}
+
+function CoreValuesInput({ values, onChange }) {
+	const [draft, setDraft] = useState("");
+
+	const addValue = () => {
+		const trimmed = draft.trim();
+		if (!trimmed || values.includes(trimmed) || values.length >= 4) return;
+		onChange([...values, trimmed]);
+		setDraft("");
+	};
+
+	const removeValue = (index) => {
+		onChange(values.filter((_, i) => i !== index));
+	};
+
+	return (
+		<div className="space-y-3">
+			<div className="flex gap-2">
+				<input
+					type="text"
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addValue(); } }}
+					disabled={values.length >= 4}
+					className="flex-1 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-40"
+					placeholder={values.length >= 4 ? "Max 4 values" : 'e.g. "data over gut feel"'}
+				/>
+				<button
+					type="button"
+					onClick={addValue}
+					disabled={values.length >= 4 || !draft.trim()}
+					className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5 disabled:opacity-40"
+				>
+					Add
+				</button>
+			</div>
+			{values.length > 0 && (
+				<div className="flex flex-wrap gap-2">
+					{values.map((v, i) => (
+						<span key={i} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+							{v}
+							<button type="button" onClick={() => removeValue(i)} className="text-white/40 hover:text-white/80">×</button>
+						</span>
+					))}
+				</div>
+			)}
+		</div>
 	);
 }
 
@@ -341,6 +422,71 @@ export default function AgentEditor({
 					/>
 					<span>Enabled for routing</span>
 				</label>
+
+				{/* Personality */}
+				<div className="space-y-5 rounded-3xl border border-white/10 bg-black/15 p-5">
+					<div>
+						<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">Personality</p>
+						<p className="mt-1 text-sm text-white/50">These traits shape how this agent reasons, communicates, and responds under pressure.</p>
+					</div>
+
+					<div className="grid gap-5 lg:grid-cols-2">
+						<PersonalitySlider
+							label="Risk appetite"
+							leftLabel="Conservative"
+							rightLabel="Bold"
+							value={form.riskAppetite}
+							onChange={(v) => updateField("riskAppetite", v)}
+						/>
+						<PersonalitySlider
+							label="Communication"
+							leftLabel="Direct"
+							rightLabel="Diplomatic"
+							value={form.communicationStyle}
+							onChange={(v) => updateField("communicationStyle", v)}
+						/>
+						<PersonalitySlider
+							label="Reasoning"
+							leftLabel="Analytical"
+							rightLabel="Intuitive"
+							value={form.creativity}
+							onChange={(v) => updateField("creativity", v)}
+						/>
+						<PersonalitySlider
+							label="Flexibility"
+							leftLabel="Stubborn"
+							rightLabel="Open"
+							value={form.flexibility}
+							onChange={(v) => updateField("flexibility", v)}
+						/>
+					</div>
+
+					<FormField label="Core values" hint="Up to 4 — press Enter to add">
+						<CoreValuesInput
+							values={form.coreValues}
+							onChange={(v) => updateField("coreValues", v)}
+						/>
+					</FormField>
+
+					<FormField label="Speaking style">
+						<div className="flex gap-2">
+							{SPEAKING_STYLES.map((style) => (
+								<button
+									key={style}
+									type="button"
+									onClick={() => updateField("speakingStyle", style)}
+									className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-medium transition ${
+										form.speakingStyle === style
+											? "border-cyan-300/60 bg-cyan-300/10 text-cyan-200"
+											: "border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:bg-white/10"
+									}`}
+								>
+									{SPEAKING_STYLE_LABELS[style]}
+								</button>
+							))}
+						</div>
+					</FormField>
+				</div>
 
 				<div className="flex flex-wrap gap-3 border-t border-white/10 pt-5">
 					<button
