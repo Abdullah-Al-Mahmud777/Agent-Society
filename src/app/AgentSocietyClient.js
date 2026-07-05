@@ -62,6 +62,73 @@ function AgentCard({ agent }) {
 
 // ─── Result display components ────────────────────────────────────────────────
 
+function DebateSection({ debate, agentColor }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <div className="mt-3 rounded-xl border border-white/8 bg-black/20">
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left"
+            >
+                <div className="flex items-center gap-2">
+                    {debate.positionChanged ? (
+                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                            Position changed
+                        </span>
+                    ) : (
+                        <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                            Position held
+                        </span>
+                    )}
+                    <span className="text-xs text-white/35">Round 2 — debate reaction</span>
+                </div>
+                <span className="text-white/30 text-xs">{open ? "▲" : "▼"}</span>
+            </button>
+
+            {open && (
+                <div className="space-y-3 border-t border-white/8 px-4 pb-4 pt-3">
+                    {debate.agrees?.length > 0 && (
+                        <div>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-400/70">Agrees with</div>
+                            <ul className="space-y-1">
+                                {debate.agrees.map((a, i) => (
+                                    <li key={i} className="flex gap-2 text-sm leading-6 text-white/70">
+                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/60" />
+                                        {a}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {debate.disagrees?.length > 0 && (
+                        <div>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-400/70">Disagrees with</div>
+                            <ul className="space-y-1">
+                                {debate.disagrees.map((d, i) => (
+                                    <li key={i} className="flex gap-2 text-sm leading-6 text-white/70">
+                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400/60" />
+                                        {d}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {debate.updatedPosition && (
+                        <div>
+                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                                {debate.positionChanged ? "Updated position" : "Final position"}
+                            </div>
+                            <p className="text-sm leading-6 text-white/70 italic">{debate.updatedPosition}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function SpecialistResultCard({ result }) {
     const hasError = Boolean(result.error);
 
@@ -80,36 +147,48 @@ function SpecialistResultCard({ result }) {
                         {result.agentName}
                     </span>
                 </div>
-                {result.confidence && !hasError && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/50">
-                        {result.confidence} confidence
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {result.memoriesUsed > 0 && (
+                        <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2 py-0.5 text-[11px] text-violet-300/70">
+                            {result.memoriesUsed} {result.memoriesUsed === 1 ? "memory" : "memories"}
+                        </span>
+                    )}
+                    {result.confidence && !hasError && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/50">
+                            {result.confidence} confidence
+                        </span>
+                    )}
+                </div>
             </div>
 
             {hasError ? (
                 <p className="mt-3 text-sm text-red-400/80">{result.summary}</p>
             ) : (
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-white/80">
-                    {result.summary && (
-                        <li className="flex gap-3">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                            <span>{result.summary}</span>
-                        </li>
+                <>
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-white/80">
+                        {result.summary && (
+                            <li className="flex gap-3">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+                                <span>{result.summary}</span>
+                            </li>
+                        )}
+                        {result.findings && result.findings !== "N/A" && (
+                            <li className="flex gap-3">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+                                <span>{result.findings}</span>
+                            </li>
+                        )}
+                        {result.recommendation && result.recommendation !== "N/A" && (
+                            <li className="flex gap-3">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+                                <span className="text-white/60 italic">{result.recommendation}</span>
+                            </li>
+                        )}
+                    </ul>
+                    {result.debate && (
+                        <DebateSection debate={result.debate} agentColor={result.agentColor} />
                     )}
-                    {result.findings && result.findings !== "N/A" && (
-                        <li className="flex gap-3">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                            <span>{result.findings}</span>
-                        </li>
-                    )}
-                    {result.recommendation && result.recommendation !== "N/A" && (
-                        <li className="flex gap-3">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                            <span className="text-white/60 italic">{result.recommendation}</span>
-                        </li>
-                    )}
-                </ul>
+                </>
             )}
         </div>
     );
@@ -281,6 +360,9 @@ export default function AgentSocietyClient() {
                                 <Pill>Multi-agent orchestration</Pill>
                                 {hydrated && enabledAgents.length > 0 && (
                                     <Pill>{enabledAgents.length} agent{enabledAgents.length !== 1 ? "s" : ""} active</Pill>
+                                )}
+                                {hydrated && enabledAgents.length >= 3 && (
+                                    <Pill>2-round debate</Pill>
                                 )}
                             </div>
                             <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">

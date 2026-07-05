@@ -91,6 +91,27 @@ export function extractSpecialistMemories(agent, result, businessIdea, sessionId
 }
 
 /**
+ * Extract a memory when an agent changes its position during a debate round.
+ */
+export function extractDebateMemories(agent, debateResult, businessIdea, sessionId) {
+    if (!debateResult?.positionChanged) return [];
+
+    const topic = topicKeywords(businessIdea).join(" ");
+    const snippet = businessIdea.slice(0, 80);
+
+    return [{
+        id: `${sessionId}-${agent.id ?? agent.agentName}-debate-shift`,
+        agentId: agent.id ?? agent.agentName,
+        agentName: agent.name ?? agent.agentName,
+        type: "episodic",
+        topic,
+        content: `Changed my position during debate on "${snippet}": ${(debateResult.updatedPosition ?? "").slice(0, 250)}`,
+        createdAt: new Date().toISOString(),
+        sessionId,
+    }];
+}
+
+/**
  * Extract an episodic memory for the orchestrator after it synthesizes a debate.
  */
 export function extractOrchestratorMemory(agent, final, businessIdea, sessionId) {
