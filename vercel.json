@@ -1,0 +1,12 @@
+{
+  "env": {
+    "GEMINI_API_KEY": "@gemini-api-key",
+    "DEFAULT_PROVIDER": "gemini",
+    "DEFAULT_MODEL": "gemini-2.5-flash"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_ENCRYPTION_KEY": "your-encryption-key-here"
+    }
+  }
+}
