@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 import { buildPersonalityContext } from "@/lib/personality";
+import { createProvider } from "@/lib/provider-factory";
 
 export const runtime = "nodejs";
 
 /**
  * Agent-specific chat endpoint
  * POST /api/agent-chat
- * Body: { prompt: string, agent: object }
+ * Body: { prompt: string, agent: object, providerConfig: object }
  */
 export async function POST(request) {
     try {
-        const { prompt, agent } = await request.json();
+        const { prompt, agent, providerConfig } = await request.json();
 
         if (!prompt || !prompt.trim()) {
             return NextResponse.json(
@@ -27,11 +27,13 @@ export async function POST(request) {
             );
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
+        if (!providerConfig) {
             return NextResponse.json(
-                { success: false, error: "GEMINI_API_KEY not configured" },
-                { status: 500 }
+                { 
+                    success: false, 
+                    error: "No LLM provider configured. Please configure a provider in the Providers page first." 
+                },
+                { status: 400 }
             );
         }
 
@@ -45,17 +47,15 @@ export async function POST(request) {
             .filter(Boolean)
             .join("\n\n");
 
+        // Create dynamic provider client
+        const providerFactory = createProvider(providerConfig);
+        const client = providerFactory.getClient();
+
         // Generate response using agent's configuration
-        const genAI = new GoogleGenAI({ apiKey });
-        
-        const response = await genAI.models.generateContent({
-            model: agent.model || "gemini-2.5-flash",
-            contents: prompt.trim(),
-            config: {
-                systemInstruction: systemPrompt,
-                temperature: agent.temperature ?? 0.7,
-                maxOutputTokens: agent.maxTokens ?? 2048,
-            },
+        const responseText = await client.generateContent(prompt.trim(), {
+            temperature: agent.temperature ?? 0.7,
+            maxTokens: agent.maxTokens ?? 2048,
+            systemPrompt: systemPrompt,
         });
 
         return NextResponse.json({
@@ -63,7 +63,9 @@ export async function POST(request) {
             agentName: agent.name,
             agentRole: agent.role,
             prompt: prompt.trim(),
-            response: response.text,
+            response: responseText,
+            provider: providerConfig.providerName,
+            model: providerConfig.selectedModel,
             timestamp: new Date().toISOString(),
         });
     } catch (error) {

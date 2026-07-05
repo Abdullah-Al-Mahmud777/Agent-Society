@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, Loader2, User, Bot, Sparkles, Check } from "lucide-react";
+import { Send, Loader2, User, Bot, Sparkles, Check, AlertCircle, Settings } from "lucide-react";
 import { useAgentBuilderStore } from "@/store/agent-builder-store";
+import { getActiveProvider } from "@/lib/provider-storage";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Input";
 import { cn } from "@/components/ui/cn";
+import Link from "next/link";
 
 export default function SocietyPage() {
     const [mounted, setMounted] = useState(false);
@@ -17,6 +19,7 @@ export default function SocietyPage() {
     const [prompt, setPrompt] = useState("");
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [providerConfig, setProviderConfig] = useState(null);
 
     useEffect(() => {
         setMounted(true);
@@ -33,6 +36,14 @@ export default function SocietyPage() {
         setAgents(useAgentBuilderStore.getState().agents);
         setHydrated(true);
         
+        // Load active provider
+        try {
+            const activeProvider = getActiveProvider();
+            setProviderConfig(activeProvider);
+        } catch (err) {
+            console.error("Failed to load provider:", err);
+        }
+        
         return () => unsubscribe();
     }, []);
 
@@ -45,6 +56,18 @@ export default function SocietyPage() {
 
     const handleSend = async () => {
         if (!prompt.trim() || loading || !selectedAgent) return;
+
+        if (!providerConfig) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "error",
+                    content: "No LLM provider configured. Please configure a provider in the Providers page first.",
+                    timestamp: new Date().toISOString(),
+                },
+            ]);
+            return;
+        }
 
         const userMessage = {
             role: "user",
@@ -63,6 +86,7 @@ export default function SocietyPage() {
                 body: JSON.stringify({
                     prompt: userMessage.content,
                     agent: selectedAgent,
+                    providerConfig: providerConfig,
                 }),
             });
 
@@ -75,6 +99,8 @@ export default function SocietyPage() {
                         role: "assistant",
                         content: data.response,
                         agent: data.agentName,
+                        provider: data.provider,
+                        model: data.model,
                         timestamp: data.timestamp,
                     },
                 ]);

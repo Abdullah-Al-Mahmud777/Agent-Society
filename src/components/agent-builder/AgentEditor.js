@@ -291,8 +291,7 @@ export default function AgentEditor({
 						value={form.description}
 						onChange={(event) => updateField("description", event.target.value)}
 						placeholder="What does this agent do?"
-						className="w-full break-words whitespace-pre-wrap"
-						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
+						className="w-full"
 					/>
 				</Field>
 
@@ -302,8 +301,7 @@ export default function AgentEditor({
 						value={form.goal}
 						onChange={(event) => updateField("goal", event.target.value)}
 						placeholder="What outcome should it deliver?"
-						className="w-full break-words whitespace-pre-wrap"
-						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
+						className="w-full"
 					/>
 				</Field>
 
@@ -313,8 +311,7 @@ export default function AgentEditor({
 						value={form.systemPrompt}
 						onChange={(event) => updateField("systemPrompt", event.target.value)}
 						placeholder={DEFAULT_SYSTEM_PROMPT}
-						className="w-full break-words whitespace-pre-wrap"
-						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
+						className="w-full"
 					/>
 				</Field>
 

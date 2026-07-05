@@ -70,7 +70,8 @@ export function validateApiKeyFormat(providerName, apiKey) {
   
   const formats = {
     openai: /^sk-[a-zA-Z0-9]{20,}$/,
-    gemini: /^AIza[a-zA-Z0-9_-]{35}$/,
+    // Updated Gemini format to support both old (AIza...) and new (AQ....) formats
+    gemini: /^(AIza[a-zA-Z0-9_-]{35}|AQ\.[a-zA-Z0-9_-]+)$/,
     anthropic: /^sk-ant-[a-zA-Z0-9-]{95,}$/,
   };
   
