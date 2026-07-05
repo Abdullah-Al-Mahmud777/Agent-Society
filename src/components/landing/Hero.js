@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Wrench, Brain, Network, History } from "lucide-react";
@@ -27,16 +28,24 @@ const PILLARS = [
     },
 ];
 
-function fadeUp(delay, reduce) {
+function fadeUp(delay, shouldAnimate) {
     return {
-        initial: reduce ? { opacity: 0 } : { opacity: 0, y: 16 },
-        animate: reduce ? { opacity: 1 } : { opacity: 1, y: 0 },
-        transition: { duration: 0.5, delay, ease: "easeOut" },
+        initial: shouldAnimate ? { opacity: 0, y: 16 } : { opacity: 1, y: 0 },
+        animate: { opacity: 1, y: 0 },
+        transition: shouldAnimate ? { duration: 0.5, delay, ease: "easeOut" } : { duration: 0 },
     };
 }
 
 export default function Hero() {
     const reduce = useReducedMotion();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Prevent hydration mismatch by disabling animations until mounted
+    const shouldAnimate = mounted && !reduce;
 
     return (
         <main className="relative min-h-screen overflow-hidden bg-navy-900 text-ink">
@@ -47,12 +56,12 @@ export default function Hero() {
                 {/* Hero grid */}
                 <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
                     <div>
-                        <motion.div {...fadeUp(0, reduce)}>
+                        <motion.div {...fadeUp(0, shouldAnimate)}>
                             <Badge tone="cyan" uppercase>Multi-agent orchestration</Badge>
                         </motion.div>
 
                         <motion.h1
-                            {...fadeUp(0.08, reduce)}
+                            {...fadeUp(0.08, shouldAnimate)}
                             className="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight text-ink sm:text-6xl lg:text-7xl"
                         >
                             A society of AI agents that{" "}
@@ -62,7 +71,7 @@ export default function Hero() {
                         </motion.h1>
 
                         <motion.p
-                            {...fadeUp(0.16, reduce)}
+                            {...fadeUp(0.16, shouldAnimate)}
                             className="mt-6 max-w-xl text-base leading-8 text-ink-muted sm:text-lg"
                         >
                             Not isolated chatbots — distinct individuals with personality, expertise, and
@@ -70,7 +79,7 @@ export default function Hero() {
                             conclusions like a team of human experts.
                         </motion.p>
 
-                        <motion.div {...fadeUp(0.24, reduce)} className="mt-9 flex flex-wrap gap-3">
+                        <motion.div {...fadeUp(0.24, shouldAnimate)} className="mt-9 flex flex-wrap gap-3">
                             <Link
                                 href="/society"
                                 className="group inline-flex items-center gap-2 rounded-pill bg-white px-6 py-3 text-sm font-semibold text-navy-900 shadow-[0_8px_30px_rgba(34,211,238,0.2)] transition hover:bg-cyan-200"
@@ -90,9 +99,9 @@ export default function Hero() {
 
                     {/* Constellation visual */}
                     <motion.div
-                        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
-                        animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
+                        initial={shouldAnimate ? { opacity: 0, scale: 0.9 } : { opacity: 1, scale: 1 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={shouldAnimate ? { duration: 0.7, delay: 0.1, ease: "easeOut" } : { duration: 0 }}
                     >
                         <AgentConstellation />
                     </motion.div>
@@ -105,7 +114,7 @@ export default function Hero() {
                         return (
                             <motion.div
                                 key={p.title}
-                                {...fadeUp(0.3 + i * 0.1, reduce)}
+                                {...fadeUp(0.3 + i * 0.1, shouldAnimate)}
                                 className="rounded-card border border-glass-border bg-glass p-6 shadow-glass-lg backdrop-blur-glass"
                             >
                                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-glass-border bg-glass-strong">

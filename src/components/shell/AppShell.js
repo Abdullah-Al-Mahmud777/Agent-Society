@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import NavBar from "./NavBar";
@@ -13,6 +14,11 @@ import StoreHydrator from "./StoreHydrator";
 export default function AppShell({ children }) {
     const pathname = usePathname();
     const reduce = useReducedMotion();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     return (
         <>
@@ -21,8 +27,8 @@ export default function AppShell({ children }) {
             <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                     key={pathname}
-                    initial={reduce ? false : { opacity: 0, y: 8 }}
-                    animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                    initial={!mounted || reduce ? false : { opacity: 0, y: 8 }}
+                    animate={!mounted || reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
                     exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
                 >
