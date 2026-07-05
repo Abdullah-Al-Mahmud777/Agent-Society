@@ -97,15 +97,15 @@ function CoreValuesInput({ values, onChange }) {
 	};
 
 	return (
-		<div className="space-y-3">
-			<div className="flex gap-2">
+		<div className="w-full space-y-3">
+			<div className="flex w-full gap-2">
 				<Input
 					type="text"
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
 					onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addValue(); } }}
 					disabled={values.length >= 4}
-					className="py-2.5"
+					className="flex-1 py-2.5"
 					placeholder={values.length >= 4 ? "Max 4 values" : 'e.g. "data over gut feel"'}
 				/>
 				<Button
@@ -113,16 +113,17 @@ function CoreValuesInput({ values, onChange }) {
 					variant="secondary"
 					onClick={addValue}
 					disabled={values.length >= 4 || !draft.trim()}
+					className="shrink-0"
 				>
 					Add
 				</Button>
 			</div>
 			{values.length > 0 && (
-				<div className="flex flex-wrap gap-2">
+				<div className="flex w-full flex-wrap gap-2">
 					{values.map((v, i) => (
-						<span key={i} className="flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass px-3 py-1 text-xs text-ink-muted">
-							{v}
-							<button type="button" onClick={() => removeValue(i)} className="text-ink-faint hover:text-ink">×</button>
+						<span key={i} className="inline-flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass px-3 py-1 text-xs text-ink-muted">
+							<span className="break-words">{v}</span>
+							<button type="button" onClick={() => removeValue(i)} className="shrink-0 text-ink-faint hover:text-ink">×</button>
 						</span>
 					))}
 				</div>
@@ -216,59 +217,60 @@ export default function AgentEditor({
 	};
 
 	return (
-		<Card variant="default" radius="panel" className="p-6">
-			<div className="flex flex-col gap-4 border-b border-glass-border pb-5 lg:flex-row lg:items-center lg:justify-between">
-				<div>
+		<Card variant="default" radius="panel" className="w-full overflow-hidden p-5 sm:p-6">
+			<div className="flex flex-col gap-4 border-b border-glass-border pb-4 sm:pb-5 lg:flex-row lg:items-center lg:justify-between">
+				<div className="min-w-0 flex-1">
 					<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
 						Agent editor
 					</p>
-					<h2 className="mt-2 text-xl font-semibold text-ink">
+					<h2 className="mt-2 break-words text-lg font-semibold text-ink sm:text-xl">
 						{isEditing ? "Edit agent" : "Create a new agent"}
 					</h2>
-					<p className="mt-2 text-sm leading-6 text-ink-muted">
+					<p className="mt-2 break-words text-sm leading-6 text-ink-muted">
 						Validate and save every field locally. Personality traits shape how the agent debates.
 					</p>
 				</div>
 
-				<div className="flex flex-wrap gap-2">
+				<div className="flex flex-shrink-0 flex-wrap gap-2">
 					<Button variant="secondary" size="sm" onClick={onNew}>
 						<Plus className="h-3.5 w-3.5" />
-						New
+						<span className="hidden sm:inline">New</span>
 					</Button>
 					{agent ? (
 						<>
 							<Button variant="secondary" size="sm" onClick={() => onToggleEnabled(agent.id)}>
 								<Power className="h-3.5 w-3.5" />
-								{agent.isEnabled ? "Disable" : "Enable"}
+								<span className="hidden sm:inline">{agent.isEnabled ? "Disable" : "Enable"}</span>
 							</Button>
 							<Button variant="secondary" size="sm" onClick={() => onDuplicate(agent.id)}>
 								<Copy className="h-3.5 w-3.5" />
-								Duplicate
+								<span className="hidden sm:inline">Duplicate</span>
 							</Button>
 							<Button variant="danger" size="sm" onClick={() => onDelete(agent.id)}>
 								<Trash2 className="h-3.5 w-3.5" />
-								Delete
+								<span className="hidden sm:inline">Delete</span>
 							</Button>
 						</>
 					) : null}
 				</div>
 			</div>
 
-			<form className="mt-6 space-y-6" onSubmit={handleSave}>
+			<form className="mt-5 w-full space-y-5 sm:mt-6 sm:space-y-6" onSubmit={handleSave}>
 				{Object.keys(errors).length ? (
-					<div className="flex items-center gap-2 rounded-card border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+					<div className="flex items-start gap-2 rounded-card border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100 sm:items-center sm:p-4">
 						<AlertCircle className="h-4 w-4 shrink-0" />
-						Please fix the highlighted fields before saving.
+						<span className="break-words">Please fix the highlighted fields before saving.</span>
 					</div>
 				) : null}
 
-				<div className="grid gap-4 lg:grid-cols-2">
+				<div className="grid w-full gap-4 lg:grid-cols-2">
 					<Field label="Name" error={errors.name}>
 						<Input
 							type="text"
 							value={form.name}
 							onChange={(event) => updateField("name", event.target.value)}
 							placeholder="Agent name"
+							className="w-full"
 						/>
 					</Field>
 
@@ -278,6 +280,7 @@ export default function AgentEditor({
 							value={form.role}
 							onChange={(event) => updateField("role", event.target.value)}
 							placeholder="e.g. Product strategist"
+							className="w-full"
 						/>
 					</Field>
 				</div>
@@ -288,6 +291,8 @@ export default function AgentEditor({
 						value={form.description}
 						onChange={(event) => updateField("description", event.target.value)}
 						placeholder="What does this agent do?"
+						className="w-full break-words whitespace-pre-wrap"
+						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
 					/>
 				</Field>
 
@@ -297,6 +302,8 @@ export default function AgentEditor({
 						value={form.goal}
 						onChange={(event) => updateField("goal", event.target.value)}
 						placeholder="What outcome should it deliver?"
+						className="w-full break-words whitespace-pre-wrap"
+						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
 					/>
 				</Field>
 
@@ -306,14 +313,17 @@ export default function AgentEditor({
 						value={form.systemPrompt}
 						onChange={(event) => updateField("systemPrompt", event.target.value)}
 						placeholder={DEFAULT_SYSTEM_PROMPT}
+						className="w-full break-words whitespace-pre-wrap"
+						style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
 					/>
 				</Field>
 
-				<div className="grid gap-4 lg:grid-cols-2">
+				<div className="grid w-full gap-4 lg:grid-cols-2">
 					<Field label="AI provider" error={errors.aiProvider}>
 						<Select
 							value={form.aiProvider}
 							onChange={(event) => handleProviderChange(event.target.value)}
+							className="w-full"
 						>
 							{AI_PROVIDERS.map((provider) => (
 								<option key={provider} value={provider}>
@@ -329,11 +339,12 @@ export default function AgentEditor({
 							value={form.model}
 							onChange={(event) => updateField("model", event.target.value)}
 							placeholder={PROVIDER_DEFAULT_MODELS[form.aiProvider]}
+							className="w-full"
 						/>
 					</Field>
 				</div>
 
-				<div className="grid gap-4 lg:grid-cols-2">
+				<div className="grid w-full gap-4 lg:grid-cols-2">
 					<Field label={`Temperature: ${form.temperature.toFixed(1)}`} error={errors.temperature}>
 						<input
 							type="range"
@@ -354,64 +365,69 @@ export default function AgentEditor({
 							step="1"
 							value={form.maxTokens}
 							onChange={(event) => updateField("maxTokens", Number(event.target.value))}
+							className="w-full"
 						/>
 					</Field>
 				</div>
 
-				<div className="grid gap-4 lg:grid-cols-2">
+				<div className="grid w-full gap-4 lg:grid-cols-2">
 					<Field label="Icon" error={errors.icon}>
-						<div className="space-y-3">
+						<div className="w-full space-y-3">
 							<Input
 								type="text"
 								value={form.icon}
 								onChange={(event) => updateField("icon", event.target.value)}
 								placeholder="🤖"
+								className="w-full"
 							/>
-							<IconPicker value={form.icon} onChange={(icon) => updateField("icon", icon)} />
+							<div className="w-full overflow-x-auto">
+								<IconPicker value={form.icon} onChange={(icon) => updateField("icon", icon)} />
+							</div>
 						</div>
 					</Field>
 
 					<Field label="Color" error={errors.color}>
-						<div className="flex items-center gap-3">
+						<div className="flex w-full items-center gap-3">
 							<input
 								type="color"
 								value={form.color}
 								onChange={(event) => updateField("color", event.target.value)}
-								className="h-12 w-14 cursor-pointer rounded-2xl border border-glass-border bg-transparent p-1"
+								className="h-12 w-14 shrink-0 cursor-pointer rounded-2xl border border-glass-border bg-transparent p-1"
 							/>
 							<Input
 								type="text"
 								value={form.color}
 								onChange={(event) => updateField("color", event.target.value)}
 								placeholder={DEFAULT_AGENT_COLOR}
+								className="flex-1"
 							/>
 						</div>
 					</Field>
 				</div>
 
-				<label className="flex items-center gap-3 rounded-2xl border border-glass-border bg-black/15 px-4 py-3 text-sm text-ink-muted">
+				<label className="flex w-full items-center gap-3 rounded-2xl border border-glass-border bg-black/15 px-4 py-3 text-sm text-ink-muted">
 					<input
 						type="checkbox"
 						checked={form.isEnabled}
 						onChange={(event) => updateField("isEnabled", event.target.checked)}
-						className="h-4 w-4 rounded border-white/20 bg-navy-950 text-brand-cyan focus:ring-brand-cyan"
+						className="h-4 w-4 shrink-0 rounded border-white/20 bg-navy-950 text-brand-cyan focus:ring-brand-cyan"
 					/>
-					<span>Enabled for routing</span>
+					<span className="break-words">Enabled for routing</span>
 				</label>
 
 				{/* Personality */}
-				<div className="space-y-5 rounded-panel border border-glass-border bg-black/15 p-5">
-					<div>
+				<div className="w-full space-y-5 rounded-panel border border-glass-border bg-black/15 p-4 sm:p-5">
+					<div className="min-w-0">
 						<p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
-							<Sparkles className="h-3.5 w-3.5" />
-							Personality
+							<Sparkles className="h-3.5 w-3.5 shrink-0" />
+							<span className="break-words">Personality</span>
 						</p>
-						<p className="mt-1 text-sm text-ink-subtle">
+						<p className="mt-1 break-words text-sm text-ink-subtle">
 							These traits shape how this agent reasons, communicates, and responds under pressure.
 						</p>
 					</div>
 
-					<div className="grid gap-5 lg:grid-cols-2">
+					<div className="grid w-full gap-5 lg:grid-cols-2">
 						<PersonalitySlider
 							label="Risk appetite"
 							leftLabel="Conservative"
@@ -450,31 +466,31 @@ export default function AgentEditor({
 					</Field>
 
 					<Field label="Speaking style">
-						<div className="flex gap-2">
+						<div className="flex w-full flex-wrap gap-2">
 							{SPEAKING_STYLES.map((style) => (
 								<button
 									key={style}
 									type="button"
 									onClick={() => updateField("speakingStyle", style)}
 									className={cn(
-										"flex-1 rounded-2xl border px-3 py-2.5 text-sm font-medium transition",
+										"flex-1 rounded-2xl border px-3 py-2.5 text-xs font-medium transition sm:text-sm",
 										form.speakingStyle === style
 											? "border-brand-cyan/60 bg-brand-cyan/10 text-cyan-200"
 											: "border-glass-border bg-glass text-ink-subtle hover:border-glass-border-strong hover:bg-glass-strong"
 									)}
 								>
-									{SPEAKING_STYLE_LABELS[style]}
+									<span className="break-words">{SPEAKING_STYLE_LABELS[style]}</span>
 								</button>
 							))}
 						</div>
 					</Field>
 				</div>
 
-				<div className="flex flex-wrap gap-3 border-t border-glass-border pt-5">
-					<Button type="submit" variant="primary" size="lg">
+				<div className="flex w-full flex-wrap gap-3 border-t border-glass-border pt-5">
+					<Button type="submit" variant="primary" size="lg" className="flex-1 sm:flex-initial">
 						{isEditing ? "Save agent" : "Create agent"}
 					</Button>
-					<Button type="button" variant="secondary" size="lg" onClick={handleReset}>
+					<Button type="button" variant="secondary" size="lg" onClick={handleReset} className="flex-1 sm:flex-initial">
 						Reset form
 					</Button>
 				</div>
