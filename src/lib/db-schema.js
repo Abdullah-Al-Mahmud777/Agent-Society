@@ -51,7 +51,7 @@ export const PROVIDER_INFO = {
     name: "Google Gemini",
     icon: "✨",
     models: ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-    keyFormat: "AIza...",
+    keyFormat: "AIza... or AQ...",
     docsUrl: "https://aistudio.google.com/app/apikey",
   },
   [PROVIDERS.ANTHROPIC]: {

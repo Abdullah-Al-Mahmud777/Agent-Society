@@ -150,6 +150,9 @@ textarea {
   white-space: pre-wrap !important;
   line-break: anywhere !important;
   hyphens: auto !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 textarea:focus {

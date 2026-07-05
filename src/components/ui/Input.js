@@ -3,7 +3,7 @@
 import { cn } from "./cn";
 
 const FIELD_BASE =
-    "w-full min-w-0 max-w-full rounded-2xl border border-glass-border bg-navy-950/80 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-cyan/60 focus:ring-2 focus:ring-brand-cyan/20 disabled:opacity-40 break-words overflow-wrap-anywhere";
+    "w-full min-w-0 max-w-full rounded-2xl border border-glass-border bg-navy-950/80 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-cyan/60 focus:ring-2 focus:ring-brand-cyan/20 disabled:opacity-40";
 
 /**
  * Field wrapper — label + control + error + hint.
@@ -64,7 +64,7 @@ export function Textarea({ className, rows = 4, onFocus, onBlur, onWheel, onChan
         <textarea 
             className={cn(
                 FIELD_BASE, 
-                "min-h-[80px] resize-none overflow-y-auto break-words whitespace-pre-wrap [overflow-wrap:anywhere] [word-break:break-word]",
+                "min-h-[80px] resize-none overflow-y-auto",
                 className
             )} 
             rows={rows}
@@ -72,7 +72,13 @@ export function Textarea({ className, rows = 4, onFocus, onBlur, onWheel, onChan
             onBlur={handleBlur}
             onWheel={handleWheel}
             onChange={handleChange}
-            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+            style={{ 
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '100%',
+                width: '100%'
+            }}
             {...rest} 
         />
     );

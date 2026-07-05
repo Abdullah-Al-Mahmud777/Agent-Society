@@ -112,7 +112,7 @@ npm run dev
 // User configures via UI at /providers
 {
   providerName: "gemini",
-  apiKey: "AIza...your-key",
+  apiKey: "AIza...your-key or AQ....your-key",  // Supports both formats
   selectedModel: "gemini-2.5-flash"
 }
 
@@ -123,7 +123,32 @@ npm run dev
 // 4. Makes it available for agents
 ```
 
-### Example 2: Execute Agent Task
+### Example 2: Chat with Agent (Society Page)
+
+Once you configure a provider:
+
+1. Navigate to `/society`
+2. Select an agent from the sidebar
+3. Type your message and press Enter
+4. The agent uses your configured provider automatically
+
+Behind the scenes:
+```javascript
+// System loads active provider
+const provider = getActiveProvider();
+
+// Sends to API with provider config
+await fetch("/api/agent-chat", {
+  method: "POST",
+  body: JSON.stringify({
+    prompt: userMessage,
+    agent: selectedAgent,
+    providerConfig: provider  // Dynamic provider from user config
+  })
+});
+```
+
+### Example 3: Execute Agent Task Programmatically
 
 ```javascript
 // In your agent code
@@ -142,7 +167,7 @@ const response = await executeAgentTask(
 );
 ```
 
-### Example 3: API Route Usage
+### Example 4: API Route Usage
 
 ```javascript
 // POST /api/agents/execute
