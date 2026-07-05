@@ -14,6 +14,9 @@ export const PROVIDER_DEFAULT_MODELS = {
 
 export const ICON_OPTIONS = ["🤖", "👑", "🧠", "🎯", "📈", "⚙️", "💬", "🚀", "🧪", "🛡️"];
 
+export const SPEAKING_STYLES = ["formal", "casual", "technical"];
+export const SPEAKING_STYLE_LABELS = { formal: "Formal", casual: "Casual", technical: "Technical" };
+
 export const DEFAULT_AGENT_COLOR = "#22c55e";
 export const DEFAULT_SYSTEM_PROMPT =
 	"You are a reliable AI agent. Follow the assigned role, pursue the stated goal, and respond with clear, actionable output.";
@@ -58,6 +61,13 @@ export const agentInputSchema = z.object({
 	icon: z.string().trim().min(1, "Icon is required").max(8, "Icon must be 8 characters or less"),
 	color: z.string().regex(colorRegex, "Color must be a hex value like #22c55e"),
 	isEnabled: z.boolean(),
+	// Personality traits (0 = left extreme, 1 = right extreme)
+	riskAppetite: z.number().min(0).max(1),
+	communicationStyle: z.number().min(0).max(1),
+	creativity: z.number().min(0).max(1),
+	flexibility: z.number().min(0).max(1),
+	coreValues: z.array(z.string().trim().min(1).max(60)).max(4),
+	speakingStyle: z.enum(SPEAKING_STYLES),
 });
 
 export const agentSchema = agentInputSchema.extend({
@@ -103,6 +113,12 @@ export function createAgentDefaults(overrides = {}) {
 		icon: "🤖",
 		color: DEFAULT_AGENT_COLOR,
 		isEnabled: true,
+		riskAppetite: 0.5,
+		communicationStyle: 0.5,
+		creativity: 0.5,
+		flexibility: 0.5,
+		coreValues: [],
+		speakingStyle: "formal",
 		...overrides,
 	};
 }
@@ -128,13 +144,19 @@ export function createStarterAgents() {
 			role: "Orchestrator",
 			goal: "Turn ideas into an executable plan.",
 			systemPrompt: "You are the CEO Agent. Prioritize clarity, strategy, and decision-making across the agent council.",
-			aiProvider: "openai",
-			model: "gpt-4o-mini",
+			aiProvider: "gemini",
+			model: "gemini-2.5-flash",
 			temperature: 0.3,
 			maxTokens: 1200,
 			icon: "👑",
 			color: "#22c55e",
 			isEnabled: true,
+			riskAppetite: 0.55,
+			communicationStyle: 0.25,
+			creativity: 0.45,
+			flexibility: 0.6,
+			coreValues: ["clarity over complexity", "decisions drive momentum"],
+			speakingStyle: "formal",
 		}),
 		buildSeedAgent({
 			id: "starter-research",
@@ -144,12 +166,18 @@ export function createStarterAgents() {
 			goal: "Find the strongest market wedge.",
 			systemPrompt: "You are a market research specialist. Focus on demand, competitors, and market opportunity.",
 			aiProvider: "gemini",
-			model: "gemini-1.5-flash",
+			model: "gemini-2.5-flash",
 			temperature: 0.4,
 			maxTokens: 1000,
 			icon: "📈",
 			color: "#0ea5e9",
 			isEnabled: true,
+			riskAppetite: 0.25,
+			communicationStyle: 0.5,
+			creativity: 0.4,
+			flexibility: 0.75,
+			coreValues: ["data over intuition", "know the customer"],
+			speakingStyle: "technical",
 		}),
 		buildSeedAgent({
 			id: "starter-product",
@@ -158,13 +186,19 @@ export function createStarterAgents() {
 			role: "Product",
 			goal: "Define a clear MVP and execution path.",
 			systemPrompt: "You are a product manager specialist. Turn the business idea into a focused MVP.",
-			aiProvider: "openai",
-			model: "gpt-4o-mini",
+			aiProvider: "gemini",
+			model: "gemini-2.5-flash",
 			temperature: 0.5,
 			maxTokens: 1100,
 			icon: "🎯",
 			color: "#f59e0b",
 			isEnabled: true,
+			riskAppetite: 0.65,
+			communicationStyle: 0.6,
+			creativity: 0.7,
+			flexibility: 0.5,
+			coreValues: ["ship to learn", "user value first"],
+			speakingStyle: "casual",
 		}),
 	];
 }

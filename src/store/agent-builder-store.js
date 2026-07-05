@@ -55,14 +55,9 @@ function normalizeAgents(agents) {
 	});
 }
 
-function getNextSelection(agents, deletedId) {
+function getNextSelection(agents, deletedIndex) {
 	if (!agents.length) {
 		return null;
-	}
-
-	const deletedIndex = agents.findIndex((agent) => agent.id === deletedId);
-	if (deletedIndex === -1) {
-		return agents[0].id;
 	}
 
 	return agents[Math.min(deletedIndex, agents.length - 1)].id;
@@ -145,10 +140,11 @@ export const useAgentBuilderStore = create(
 
 			deleteAgent: (agentId) => {
 				set((state) => {
+					const deletedIndex = state.agents.findIndex((agent) => agent.id === agentId);
 					const nextAgents = state.agents.filter((agent) => agent.id !== agentId);
 					return {
 						agents: nextAgents,
-						selectedAgentId: getNextSelection(nextAgents, agentId),
+						selectedAgentId: getNextSelection(nextAgents, deletedIndex),
 					};
 				});
 			},
@@ -164,7 +160,7 @@ export const useAgentBuilderStore = create(
 		{
 			name: "agent-society-builder",
 			storage,
-			version: 2,
+			version: 3,
 			migrate: (persistedState) => {
 				if (!persistedState) {
 					return {
@@ -173,7 +169,17 @@ export const useAgentBuilderStore = create(
 					};
 				}
 
-				const migratedAgents = normalizeAgents(persistedState.agents ?? starterAgents);
+				// Backfill personality fields for agents saved before v3
+				const migratedAgents = normalizeAgents(persistedState.agents ?? starterAgents).map((agent) => ({
+					riskAppetite: 0.5,
+					communicationStyle: 0.5,
+					creativity: 0.5,
+					flexibility: 0.5,
+					coreValues: [],
+					speakingStyle: "formal",
+					...agent,
+				}));
+
 				const selectedAgentId = migratedAgents.some((agent) => agent.id === persistedState.selectedAgentId)
 					? persistedState.selectedAgentId
 					: migratedAgents[0]?.id ?? null;
