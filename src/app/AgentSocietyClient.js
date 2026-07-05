@@ -1,8 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAgentBuilderStore } from "../store/agent-builder-store";
-import { useMemoryStore } from "../store/memory-store";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+    Play,
+    RotateCcw,
+    Crown,
+    ChevronDown,
+    Brain,
+    AlertCircle,
+    Network,
+    Sparkles,
+} from "lucide-react";
+import { useAgentBuilderStore } from "@/store/agent-builder-store";
+import { useMemoryStore } from "@/store/memory-store";
+import { Card } from "@/components/ui/Card";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/components/ui/cn";
 
 const FALLBACK_ROSTER = [
     { name: "CEO Agent", role: "Orchestrator", icon: "👑", color: "#22c55e", description: "Coordinates the council and synthesizes the final recommendation." },
@@ -16,57 +34,46 @@ const FALLBACK_ROSTER = [
 const workflowSteps = [
     "User submits an idea.",
     "Orchestrator agent creates a plan and assigns specialist tasks.",
-    "Specialist agents return structured findings.",
-    "Orchestrator merges the outputs into one decision package.",
-    "Final recommendation is delivered with key decisions and next steps.",
+    "Specialist agents return structured findings independently.",
+    "Agents debate — reacting to each other, agreeing and disagreeing.",
+    "Orchestrator synthesizes everything into one final decision.",
 ];
-
-// ─── Primitives ───────────────────────────────────────────────────────────────
-
-function Pill({ children }) {
-    return (
-        <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80">
-            {children}
-        </span>
-    );
-}
-
-function SectionCard({ title, children, className = "" }) {
-    return (
-        <section className={`rounded-3xl border border-white/10 bg-white/6 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur ${className}`}>
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            <div className="mt-4">{children}</div>
-        </section>
-    );
-}
 
 // ─── Agent roster card ────────────────────────────────────────────────────────
 
-function AgentCard({ agent }) {
+function AgentCard({ agent, index }) {
+    const reduce = useReducedMotion();
     return (
-        <article className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-            <div className="h-1.5 w-20 rounded-full" style={{ backgroundColor: agent.color ?? "#22c55e" }} />
-            <div className="mt-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <span className="text-lg leading-none">{agent.icon}</span>
-                    <h3 className="text-base font-semibold text-white">{agent.name}</h3>
+        <motion.div
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
+        >
+            <Card interactive variant="default" className="p-5">
+                <div className="h-1.5 w-20 rounded-full" style={{ backgroundColor: agent.color ?? "#22c55e" }} />
+                <div className="mt-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-lg leading-none">{agent.icon}</span>
+                        <h3 className="text-base font-semibold text-ink">{agent.name}</h3>
+                    </div>
+                    <span className="rounded-pill border border-glass-border px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-ink-subtle">
+                        {agent.role}
+                    </span>
                 </div>
-                <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/50">
-                    {agent.role}
-                </span>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-white/70">{agent.description}</p>
-        </article>
+                <p className="mt-3 text-sm leading-6 text-ink-muted">{agent.description}</p>
+            </Card>
+        </motion.div>
     );
 }
 
-// ─── Result display components ────────────────────────────────────────────────
+// ─── Debate reaction (animated expand) ────────────────────────────────────────
 
-function DebateSection({ debate, agentColor }) {
+function DebateSection({ debate }) {
     const [open, setOpen] = useState(false);
+    const reduce = useReducedMotion();
 
     return (
-        <div className="mt-3 rounded-xl border border-white/8 bg-black/20">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-glass-border bg-black/20">
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -74,57 +81,66 @@ function DebateSection({ debate, agentColor }) {
             >
                 <div className="flex items-center gap-2">
                     {debate.positionChanged ? (
-                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                            Position changed
-                        </span>
+                        <Badge tone="amber" uppercase>Position changed</Badge>
                     ) : (
-                        <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                            Position held
-                        </span>
+                        <Badge tone="neutral" uppercase>Position held</Badge>
                     )}
-                    <span className="text-xs text-white/35">Round 2 — debate reaction</span>
+                    <span className="text-xs text-ink-faint">Round 2 — debate reaction</span>
                 </div>
-                <span className="text-white/30 text-xs">{open ? "▲" : "▼"}</span>
+                <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown className="h-4 w-4 text-ink-faint" />
+                </motion.span>
             </button>
 
-            {open && (
-                <div className="space-y-3 border-t border-white/8 px-4 pb-4 pt-3">
-                    {debate.agrees?.length > 0 && (
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-400/70">Agrees with</div>
-                            <ul className="space-y-1">
-                                {debate.agrees.map((a, i) => (
-                                    <li key={i} className="flex gap-2 text-sm leading-6 text-white/70">
-                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/60" />
-                                        {a}
-                                    </li>
-                                ))}
-                            </ul>
+            <AnimatePresence initial={false}>
+                {open && (
+                    <motion.div
+                        key="content"
+                        initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                        animate={reduce ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                        exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                        transition={{ duration: 0.28, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                    >
+                        <div className="space-y-3 border-t border-glass-border px-4 pb-4 pt-3">
+                            {debate.agrees?.length > 0 && (
+                                <div>
+                                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-400/70">Agrees with</div>
+                                    <ul className="space-y-1">
+                                        {debate.agrees.map((a, i) => (
+                                            <li key={i} className="flex gap-2 text-sm leading-6 text-ink-muted">
+                                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/60" />
+                                                {a}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {debate.disagrees?.length > 0 && (
+                                <div>
+                                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-400/70">Disagrees with</div>
+                                    <ul className="space-y-1">
+                                        {debate.disagrees.map((d, i) => (
+                                            <li key={i} className="flex gap-2 text-sm leading-6 text-ink-muted">
+                                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400/60" />
+                                                {d}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {debate.updatedPosition && (
+                                <div>
+                                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+                                        {debate.positionChanged ? "Updated position" : "Final position"}
+                                    </div>
+                                    <p className="text-sm leading-6 text-ink-muted italic">{debate.updatedPosition}</p>
+                                </div>
+                            )}
                         </div>
-                    )}
-                    {debate.disagrees?.length > 0 && (
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-400/70">Disagrees with</div>
-                            <ul className="space-y-1">
-                                {debate.disagrees.map((d, i) => (
-                                    <li key={i} className="flex gap-2 text-sm leading-6 text-white/70">
-                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400/60" />
-                                        {d}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                    {debate.updatedPosition && (
-                        <div>
-                            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/35">
-                                {debate.positionChanged ? "Updated position" : "Final position"}
-                            </div>
-                            <p className="text-sm leading-6 text-white/70 italic">{debate.updatedPosition}</p>
-                        </div>
-                    )}
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
@@ -134,60 +150,62 @@ function SpecialistResultCard({ result }) {
 
     return (
         <div
-            className="rounded-2xl border p-4"
+            className="rounded-card border p-4"
             style={{
                 borderColor: `${result.agentColor ?? "#64748b"}33`,
-                backgroundColor: `${result.agentColor ?? "#64748b"}15`,
+                backgroundColor: `${result.agentColor ?? "#64748b"}12`,
             }}
         >
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-base leading-none">{result.agentIcon}</span>
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                    <span
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-sm"
+                        style={{ backgroundColor: `${result.agentColor ?? "#64748b"}22` }}
+                    >
+                        {result.agentIcon}
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-muted">
                         {result.agentName}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
                     {result.memoriesUsed > 0 && (
-                        <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2 py-0.5 text-[11px] text-violet-300/70">
-                            {result.memoriesUsed} {result.memoriesUsed === 1 ? "memory" : "memories"}
-                        </span>
+                        <Badge tone="violet">
+                            <Brain className="h-3 w-3" />
+                            {result.memoriesUsed}
+                        </Badge>
                     )}
                     {result.confidence && !hasError && (
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/50">
-                            {result.confidence} confidence
-                        </span>
+                        <Badge tone="neutral">{result.confidence}</Badge>
                     )}
                 </div>
             </div>
 
             {hasError ? (
-                <p className="mt-3 text-sm text-red-400/80">{result.summary}</p>
+                <p className="mt-3 text-sm text-rose-400/80">{result.summary}</p>
             ) : (
                 <>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-white/80">
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-ink-muted">
                         {result.summary && (
                             <li className="flex gap-3">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint" />
                                 <span>{result.summary}</span>
                             </li>
                         )}
                         {result.findings && result.findings !== "N/A" && (
                             <li className="flex gap-3">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint" />
                                 <span>{result.findings}</span>
                             </li>
                         )}
                         {result.recommendation && result.recommendation !== "N/A" && (
                             <li className="flex gap-3">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                                <span className="text-white/60 italic">{result.recommendation}</span>
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint" />
+                                <span className="italic text-ink-subtle">{result.recommendation}</span>
                             </li>
                         )}
                     </ul>
-                    {result.debate && (
-                        <DebateSection debate={result.debate} agentColor={result.agentColor} />
-                    )}
+                    {result.debate && <DebateSection debate={result.debate} />}
                 </>
             )}
         </div>
@@ -195,28 +213,34 @@ function SpecialistResultCard({ result }) {
 }
 
 function OrchestratorResultCard({ orchestrator, final }) {
+    const reduce = useReducedMotion();
     return (
-        <div className="space-y-4">
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+        <motion.div
+            className="space-y-4"
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+        >
+            <div className="rounded-card border border-brand-cyan/25 bg-brand-cyan/10 p-4">
                 <div className="flex items-center gap-2">
-                    <span className="text-base leading-none">{orchestrator.agentIcon ?? "👑"}</span>
+                    <Crown className="h-4 w-4 text-cyan-200" />
                     <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/80">
                         {orchestrator.agentName ?? "Orchestrator"} — final decision
                     </div>
                 </div>
-                <p className="mt-2 text-sm leading-7 text-white/85">{final.summary}</p>
+                <p className="mt-2 text-sm leading-7 text-ink">{final.summary}</p>
                 {final.recommendation && (
                     <p className="mt-2 text-sm leading-6 text-cyan-200/70 italic">{final.recommendation}</p>
                 )}
             </div>
 
             {final.keyDecisions?.length > 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-white/45">Key decisions</div>
+                <div className="rounded-card border border-glass-border bg-glass p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-ink-subtle">Key decisions</div>
                     <ul className="mt-3 space-y-2">
                         {final.keyDecisions.map((d, i) => (
-                            <li key={i} className="flex gap-3 text-sm leading-6 text-white/75">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/60" />
+                            <li key={i} className="flex gap-3 text-sm leading-6 text-ink-muted">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-cyan/60" />
                                 <span>{d}</span>
                             </li>
                         ))}
@@ -225,12 +249,12 @@ function OrchestratorResultCard({ orchestrator, final }) {
             )}
 
             {final.nextSteps?.length > 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-white/45">Next steps</div>
+                <div className="rounded-card border border-glass-border bg-glass p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-ink-subtle">Next steps</div>
                     <ul className="mt-3 space-y-2">
                         {final.nextSteps.map((s, i) => (
-                            <li key={i} className="flex gap-3 text-sm leading-6 text-white/75">
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white/60">
+                            <li key={i} className="flex gap-3 text-sm leading-6 text-ink-muted">
+                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-glass-strong text-[11px] font-semibold text-ink-subtle">
                                     {i + 1}
                                 </span>
                                 <span>{s}</span>
@@ -239,15 +263,11 @@ function OrchestratorResultCard({ orchestrator, final }) {
                     </ul>
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
-
-function Skeleton({ className = "" }) {
-    return <div className={`animate-pulse rounded-xl bg-white/8 ${className}`} />;
-}
+// ─── State helpers ────────────────────────────────────────────────────────────
 
 function LoadingSkeleton() {
     return (
@@ -261,23 +281,22 @@ function LoadingSkeleton() {
     );
 }
 
-// ─── Idle placeholder ─────────────────────────────────────────────────────────
-
 function IdlePlaceholder({ message }) {
     return (
-        <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-dashed border-white/10 p-6">
-            <p className="text-center text-sm text-white/35">{message}</p>
+        <div className="flex min-h-[120px] items-center justify-center rounded-card border border-dashed border-glass-border p-6">
+            <p className="text-center text-sm text-ink-faint">{message}</p>
         </div>
     );
 }
 
-// ─── Error banner ─────────────────────────────────────────────────────────────
-
 function ErrorBanner({ message }) {
     return (
-        <div className="rounded-2xl border border-red-400/25 bg-red-400/10 p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300/80">Error</div>
-            <p className="mt-1 text-sm leading-6 text-red-200/80">{message}</p>
+        <div className="rounded-card border border-rose-400/25 bg-rose-400/10 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-rose-300/80">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Error
+            </div>
+            <p className="mt-1 text-sm leading-6 text-rose-200/80">{message}</p>
         </div>
     );
 }
@@ -289,6 +308,7 @@ export default function AgentSocietyClient() {
     const memories = useMemoryStore((state) => state.memories);
     const addMemories = useMemoryStore((state) => state.addMemories);
     const [hydrated, setHydrated] = useState(false);
+    const reduce = useReducedMotion();
 
     useEffect(() => {
         useAgentBuilderStore.persist.rehydrate();
@@ -340,61 +360,75 @@ export default function AgentSocietyClient() {
             setApiError(err.message);
             setStatus("error");
         }
-    }, [idea, enabledAgents]);
+    }, [idea, enabledAgents, memories, addMemories]);
 
     const specialists = result?.agents?.specialists ?? [];
     const orchestrator = result?.agents?.orchestrator ?? null;
     const final = result?.final ?? null;
 
     return (
-        <main className="min-h-screen overflow-hidden bg-[#07111f] text-white">
-            <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.14),_transparent_28%),linear-gradient(180deg,_#0b1526_0%,_#07111f_100%)]" />
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10">
+        <main className="relative min-h-screen overflow-hidden bg-navy-900 text-ink">
+            <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.14),_transparent_28%),linear-gradient(180deg,_#0b1526_0%,_#07111f_100%)]" />
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-10 sm:px-8 lg:px-10">
 
                 {/* Header */}
-                <header className="rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_20px_100px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="max-w-3xl">
-                            <div className="flex flex-wrap gap-2">
-                                <Pill>Agent Society</Pill>
-                                <Pill>Multi-agent orchestration</Pill>
-                                {hydrated && enabledAgents.length > 0 && (
-                                    <Pill>{enabledAgents.length} agent{enabledAgents.length !== 1 ? "s" : ""} active</Pill>
-                                )}
-                                {hydrated && enabledAgents.length >= 3 && (
-                                    <Pill>2-round debate</Pill>
-                                )}
+                <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
+                >
+                    <Card variant="strong" radius="panel" className="p-8" glow="#22d3ee">
+                        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                            <div className="max-w-3xl">
+                                <div className="flex flex-wrap gap-2">
+                                    <Badge tone="cyan" uppercase>Agent Society</Badge>
+                                    <Badge tone="neutral" uppercase>Multi-agent orchestration</Badge>
+                                    {hydrated && enabledAgents.length > 0 && (
+                                        <Badge tone="emerald" uppercase>
+                                            {enabledAgents.length} agent{enabledAgents.length !== 1 ? "s" : ""} active
+                                        </Badge>
+                                    )}
+                                    {hydrated && enabledAgents.length >= 3 && (
+                                        <Badge tone="violet" uppercase>2-round debate</Badge>
+                                    )}
+                                </div>
+                                <h1 className="mt-5 text-4xl font-semibold tracking-tight text-ink sm:text-5xl lg:text-6xl">
+                                    A society of AI agents that debate and decide.
+                                </h1>
+                                <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-muted sm:text-base">
+                                    Each agent analyzes from its own perspective, then they debate one another. The
+                                    orchestrator synthesizes every view into a final recommendation.
+                                </p>
                             </div>
-                            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                A society of AI agents that debate and decide.
-                            </h1>
-                            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-                                Each agent analyzes from its own perspective. The orchestrator synthesizes every view into a final recommendation.
-                            </p>
+                            <div className="grid gap-2 rounded-card border border-brand-cyan/20 bg-brand-cyan/10 p-4 text-sm text-cyan-50">
+                                <div className="flex items-center gap-2 font-semibold uppercase tracking-[0.25em] text-cyan-200/80">
+                                    <Crown className="h-3.5 w-3.5" />
+                                    Orchestrator
+                                </div>
+                                <div className="text-cyan-100/80">
+                                    The CEO-role agent owns task routing, conflict resolution, and final synthesis.
+                                </div>
+                            </div>
                         </div>
-                        <div className="grid gap-3 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-50">
-                            <div className="font-semibold uppercase tracking-[0.25em] text-cyan-200/80">Orchestrator</div>
-                            <div>The CEO-role agent owns task routing, conflict resolution, and final synthesis.</div>
-                        </div>
-                    </div>
-                </header>
+                    </Card>
+                </motion.div>
 
                 {/* Input + Results */}
                 <section className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
                     <SectionCard title="Run the council">
-                        <p className="text-sm leading-7 text-white/70">
-                            Enter any idea. Your enabled agents will each analyze it from their own perspective, then the orchestrator synthesizes a final recommendation.
+                        <p className="text-sm leading-7 text-ink-muted">
+                            Enter any idea. Your enabled agents will each analyze it from their own perspective,
+                            debate one another, then the orchestrator synthesizes a final recommendation.
                         </p>
                         <div className="mt-5 space-y-3">
-                            <label className="block text-sm font-medium text-white/80" htmlFor="idea">
+                            <label className="block text-sm font-medium text-ink-muted" htmlFor="idea">
                                 Business idea
                             </label>
-                            <textarea
+                            <Textarea
                                 id="idea"
                                 value={idea}
                                 onChange={(e) => setIdea(e.target.value)}
                                 rows={4}
-                                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
                                 placeholder="Describe your business idea..."
                             />
                         </div>
@@ -405,26 +439,29 @@ export default function AgentSocietyClient() {
                                     : "No enabled agents. Go to the Agent Builder and enable at least one."}
                             </p>
                         ) : (
-                            <p className="mt-3 text-xs text-white/35">
+                            <p className="mt-3 text-xs text-ink-faint">
                                 {enabledAgents.length} agent{enabledAgents.length !== 1 ? "s" : ""} will run — configure them in the Agent Builder.
                             </p>
                         )}
                         <div className="mt-4 flex flex-wrap gap-3">
-                            <button
-                                type="button"
+                            <Button
+                                variant="primary"
+                                size="lg"
                                 onClick={handleRunCouncil}
+                                loading={status === "loading"}
                                 disabled={status === "loading" || !hydrated}
-                                className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
                             >
+                                {status !== "loading" && <Play className="h-4 w-4" />}
                                 {status === "loading" ? "Running council…" : "Run council"}
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                size="lg"
                                 onClick={() => setIdea("I want to build an AI startup")}
-                                className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/80 transition hover:border-white/25 hover:bg-white/5"
                             >
+                                <RotateCcw className="h-4 w-4" />
                                 Reset example
-                            </button>
+                            </Button>
                         </div>
                     </SectionCard>
 
@@ -442,21 +479,24 @@ export default function AgentSocietyClient() {
 
                 {/* Agent roster */}
                 <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    {rosterAgents.map((agent) => (
-                        <AgentCard key={agent.id ?? agent.name} agent={agent} />
+                    {rosterAgents.map((agent, i) => (
+                        <AgentCard key={agent.id ?? agent.name} agent={agent} index={i} />
                     ))}
                 </section>
 
                 {/* How data flows + Specialist outputs */}
                 <section className="grid gap-8 xl:grid-cols-2">
-                    <SectionCard title="How data flows between agents">
+                    <SectionCard
+                        title="How data flows between agents"
+                        eyebrow={null}
+                    >
                         <div className="space-y-3">
                             {workflowSteps.map((step, index) => (
-                                <div key={step} className="flex gap-4 rounded-2xl border border-white/10 bg-black/15 p-4">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white/80">
+                                <div key={step} className="flex gap-4 rounded-card border border-glass-border bg-black/15 p-4">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-glass-strong text-sm font-semibold text-ink-muted">
                                         {index + 1}
                                     </div>
-                                    <p className="text-sm leading-6 text-white/75">{step}</p>
+                                    <p className="text-sm leading-6 text-ink-muted">{step}</p>
                                 </div>
                             ))}
                         </div>
@@ -465,8 +505,8 @@ export default function AgentSocietyClient() {
                     <SectionCard
                         title={
                             status === "success" && result?.input?.businessIdea
-                                ? `Specialist outputs — "${result.input.businessIdea.slice(0, 50)}${result.input.businessIdea.length > 50 ? "…" : ""}"`
-                                : "Specialist outputs"
+                                ? `Specialist debate — "${result.input.businessIdea.slice(0, 42)}${result.input.businessIdea.length > 42 ? "…" : ""}"`
+                                : "Specialist debate"
                         }
                     >
                         {status === "idle" && (
@@ -481,74 +521,101 @@ export default function AgentSocietyClient() {
                             <IdlePlaceholder message="No results — fix the error above and run again." />
                         )}
                         {status === "success" && specialists.length > 0 && (
-                            <div className="space-y-4">
+                            <motion.div
+                                className="space-y-4"
+                                initial="hidden"
+                                animate="show"
+                                variants={{ hidden: {}, show: { transition: { staggerChildren: reduce ? 0 : 0.1 } } }}
+                            >
                                 {specialists.map((s, i) => (
-                                    <SpecialistResultCard key={i} result={s} />
+                                    <motion.div
+                                        key={i}
+                                        variants={{
+                                            hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 16 },
+                                            show: { opacity: 1, y: 0 },
+                                        }}
+                                        transition={{ duration: 0.35, ease: "easeOut" }}
+                                    >
+                                        <SpecialistResultCard result={s} />
+                                    </motion.div>
                                 ))}
-                            </div>
+                            </motion.div>
                         )}
                         {status === "success" && specialists.length === 0 && (
-                            <IdlePlaceholder message="Only one agent is enabled — add more specialist agents in the Builder to see outputs here." />
+                            <IdlePlaceholder message="Only one agent is enabled — add more specialist agents in the Builder to see the debate here." />
                         )}
                     </SectionCard>
                 </section>
 
                 {/* Memory activity */}
-                {status === "success" && result?.newMemories?.length > 0 && (
-                    <section className="rounded-3xl border border-violet-400/20 bg-violet-400/8 p-6 backdrop-blur">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-300/70">Memory</p>
-                                <h2 className="mt-1 text-lg font-semibold text-white">
-                                    {result.newMemories.length} new {result.newMemories.length === 1 ? "memory" : "memories"} saved
-                                </h2>
-                                <p className="mt-1 text-sm text-white/50">
-                                    Agents will recall these in future debates on similar topics.
-                                    {memories.length > 0 && ` Total stored: ${memories.length + result.newMemories.length}.`}
-                                </p>
-                            </div>
-                            {Object.values(result.memoriesInjected ?? {}).some((n) => n > 0) && (
-                                <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 px-4 py-3 text-sm text-violet-200/80">
-                                    {Object.values(result.memoriesInjected).reduce((a, b) => a + b, 0)} memories injected this run
-                                </div>
-                            )}
-                        </div>
-                        <ul className="mt-4 space-y-2">
-                            {result.newMemories.map((m) => (
-                                <li key={m.id} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-black/15 px-4 py-3">
-                                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                                        m.type === "episodic"
-                                            ? "bg-cyan-400/15 text-cyan-300/80"
-                                            : "bg-violet-400/15 text-violet-300/80"
-                                    }`}>
-                                        {m.type}
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <span className="text-xs font-medium text-white/50">{m.agentName} · </span>
-                                        <span className="text-sm text-white/75">{m.content.slice(0, 120)}{m.content.length > 120 ? "…" : ""}</span>
+                <AnimatePresence>
+                    {status === "success" && result?.newMemories?.length > 0 && (
+                        <motion.div
+                            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.4, delay: 0.2 }}
+                        >
+                            <Card variant="default" className="border-brand-violet/20 bg-brand-violet/8 p-6">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-violet-300/70">
+                                            <Brain className="h-3.5 w-3.5" />
+                                            Memory
+                                        </p>
+                                        <h2 className="mt-1 text-lg font-semibold text-ink">
+                                            {result.newMemories.length} new {result.newMemories.length === 1 ? "memory" : "memories"} saved
+                                        </h2>
+                                        <p className="mt-1 text-sm text-ink-subtle">
+                                            Agents will recall these in future debates on similar topics.
+                                            {memories.length > 0 && ` Total stored: ${memories.length + result.newMemories.length}.`}
+                                        </p>
                                     </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
+                                    {Object.values(result.memoriesInjected ?? {}).some((n) => n > 0) && (
+                                        <Badge tone="violet">
+                                            {Object.values(result.memoriesInjected).reduce((a, b) => a + b, 0)} injected this run
+                                        </Badge>
+                                    )}
+                                </div>
+                                <ul className="mt-4 space-y-2">
+                                    {result.newMemories.map((m) => (
+                                        <li key={m.id} className="flex items-start gap-3 rounded-card border border-glass-border bg-black/15 px-4 py-3">
+                                            <Badge tone={m.type === "episodic" ? "cyan" : "violet"} uppercase>
+                                                {m.type}
+                                            </Badge>
+                                            <div className="min-w-0 flex-1">
+                                                <span className="text-xs font-medium text-ink-subtle">{m.agentName} · </span>
+                                                <span className="text-sm text-ink-muted">{m.content.slice(0, 120)}{m.content.length > 120 ? "…" : ""}</span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </Card>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Footer context strip */}
-                <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+                <Card variant="default" radius="panel" className="p-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold text-white">How the orchestrator controls everything</h2>
-                            <p className="mt-2 max-w-3xl text-sm leading-7 text-white/70">
-                                The orchestrator decides which specialists run, merges conflicting answers, and determines when enough information exists to commit to a recommendation.
+                            <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
+                                <Network className="h-4 w-4 text-cyan-200" />
+                                How the orchestrator controls everything
+                            </h2>
+                            <p className="mt-2 max-w-3xl text-sm leading-7 text-ink-muted">
+                                The orchestrator decides which specialists run, merges conflicting answers, and
+                                determines when enough information exists to commit to a recommendation.
                             </p>
                         </div>
                         {status === "success" && result?.context && (
-                            <div className="text-sm text-white/40">
+                            <div className="flex items-center gap-2 text-sm text-ink-faint">
+                                <Sparkles className="h-3.5 w-3.5" />
                                 {result.context.marketType} · confidence {result.final?.confidence}
                             </div>
                         )}
                     </div>
-                </section>
+                </Card>
 
             </div>
         </main>
