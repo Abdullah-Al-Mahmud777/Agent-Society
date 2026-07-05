@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildPersonalityContext } from "@/lib/personality";
 import { createProvider } from "@/lib/provider-factory";
+import { encryptApiKey } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 
@@ -27,14 +28,35 @@ export async function POST(request) {
             );
         }
 
-        if (!providerConfig) {
-            return NextResponse.json(
-                { 
-                    success: false, 
-                    error: "No LLM provider configured. Please configure a provider in the Providers page first." 
-                },
-                { status: 400 }
-            );
+        // Fallback to environment variables if no provider config from client
+        let config = providerConfig;
+        
+        if (!config) {
+            // Try to use environment variables (for Vercel production)
+            const envProvider = process.env.DEFAULT_PROVIDER || "gemini";
+            const envModel = process.env.DEFAULT_MODEL || "gemini-2.5-flash";
+            const envApiKey = process.env.GEMINI_API_KEY || 
+                             process.env.OPENAI_API_KEY || 
+                             process.env.ANTHROPIC_API_KEY;
+            
+            if (envApiKey) {
+                console.log("Using environment variable fallback for provider config");
+                config = {
+                    providerName: envProvider,
+                    selectedModel: envModel,
+                    encryptedApiKey: encryptApiKey(envApiKey),
+                    userId: "default-user",
+                    isActive: true,
+                };
+            } else {
+                return NextResponse.json(
+                    { 
+                        success: false, 
+                        error: "No LLM provider configured. Please configure a provider in the Providers page or set environment variables." 
+                    },
+                    { status: 400 }
+                );
+            }
         }
 
         // Build system prompt with personality
@@ -48,7 +70,7 @@ export async function POST(request) {
             .join("\n\n");
 
         // Create dynamic provider client
-        const providerFactory = createProvider(providerConfig);
+        const providerFactory = createProvider(config);
         const client = providerFactory.getClient();
 
         // Generate response using agent's configuration
@@ -64,8 +86,8 @@ export async function POST(request) {
             agentRole: agent.role,
             prompt: prompt.trim(),
             response: responseText,
-            provider: providerConfig.providerName,
-            model: providerConfig.selectedModel,
+            provider: config.providerName,
+            model: config.selectedModel,
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
