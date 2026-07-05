@@ -1,6 +1,5 @@
+import Hero from "@/components/landing/Hero";
 
-import AgentBuilderShell from "./AgentBuilderShell";
-
-export default function Page() {
-	return <AgentBuilderShell />;
+export default function HomePage() {
+	return <Hero />;
 }

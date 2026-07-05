@@ -6,6 +6,7 @@ import {
     buildMemoryContext,
     extractSpecialistMemories,
     extractOrchestratorMemory,
+    extractDebateMemories,
 } from "../../../lib/memory";
 
 export const runtime = "nodejs";
@@ -25,6 +26,19 @@ const SPECIALIST_SCHEMA = {
         confidence: { type: Type.STRING },
     },
     required: ["agent", "role", "summary", "findings", "risks", "recommendation", "confidence"],
+};
+
+// Output schema for Round 2 debate reactions
+const DEBATE_SCHEMA = {
+    type: Type.OBJECT,
+    properties: {
+        agrees: { type: Type.ARRAY, items: { type: Type.STRING } },
+        disagrees: { type: Type.ARRAY, items: { type: Type.STRING } },
+        updatedPosition: { type: Type.STRING },
+        positionChanged: { type: Type.BOOLEAN },
+        reasoning: { type: Type.STRING },
+    },
+    required: ["agrees", "disagrees", "updatedPosition", "positionChanged", "reasoning"],
 };
 
 // Output schema for the orchestrator / CEO agent
@@ -64,7 +78,12 @@ function buildContext(businessIdea) {
     };
 }
 
-async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature = 0.2 }) {
+function extractRetryDelay(errorMessage) {
+    const match = String(errorMessage).match(/retry[^0-9]*([0-9]+(?:\.[0-9]+)?)s/i);
+    return match ? Math.ceil(parseFloat(match[1])) * 1000 : 30000;
+}
+
+async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature = 0.2 }, retries = 3) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error("Missing GEMINI_API_KEY environment variable.");
@@ -72,26 +91,38 @@ async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature =
 
     const ai = new GoogleGenAI({ apiKey });
 
-    try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_MODEL,
-            contents: userPrompt,
-            config: {
-                systemInstruction: systemPrompt,
-                temperature,
-                responseMimeType: "application/json",
-                responseSchema: schema,
-            },
-        });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: GEMINI_MODEL,
+                contents: userPrompt,
+                config: {
+                    systemInstruction: systemPrompt,
+                    temperature,
+                    responseMimeType: "application/json",
+                    responseSchema: schema,
+                },
+            });
 
-        const content = response.text;
-        if (!content || !content.trim()) {
-            throw new Error("Gemini returned an empty response.");
+            const content = response.text;
+            if (!content || !content.trim()) {
+                throw new Error("Gemini returned an empty response.");
+            }
+
+            return JSON.parse(content.trim());
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            const isRateLimit = msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
+            const isTransient = msg.includes("503") || msg.includes("UNAVAILABLE");
+
+            if ((isRateLimit || isTransient) && attempt < retries) {
+                const delay = isRateLimit ? extractRetryDelay(msg) : 5000 * (attempt + 1);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+                continue;
+            }
+
+            throw new Error(`Gemini request failed: ${msg}`);
         }
-
-        return JSON.parse(content.trim());
-    } catch (error) {
-        throw new Error(`Gemini request failed: ${error instanceof Error ? error.message : error}`);
     }
 }
 
@@ -115,8 +146,8 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
     const newMemories = [];
     const memoriesInjected = {};
 
-    // Run all specialist agents concurrently
-    const specialistResults = await Promise.all(
+    // ── Round 1: all specialists analyze independently ────────────────────────
+    const round1Results = await Promise.all(
         specialists.map((agent) => {
             const relevant = retrieveRelevantMemories(memories, agent.id, businessIdea);
             const memoryBlock = buildMemoryContext(relevant);
@@ -161,6 +192,51 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
         })
     );
 
+    // ── Round 2: each specialist reacts to its peers (only with 2+ specialists) ─
+    const specialistResults = specialists.length >= 2
+        ? await Promise.all(
+            round1Results.map((round1, i) => {
+                const agent = specialists[i];
+                if (round1.error) return { ...round1, debate: null };
+
+                const peers = round1Results
+                    .filter((_, j) => j !== i && !round1Results[j]?.error)
+                    .map((p) => ({
+                        agentName: p.agentName,
+                        agentRole: p.agentRole,
+                        summary: p.summary,
+                        recommendation: p.recommendation,
+                        risks: p.risks,
+                    }));
+
+                const systemPrompt = [
+                    buildPersonalityContext(agent),
+                    agent.systemPrompt,
+                ].filter(Boolean).join("\n\n");
+
+                const userPrompt = [
+                    `Business idea: ${businessIdea}`,
+                    `\nYour Round 1 analysis:\nSummary: ${round1.summary}\nRecommendation: ${round1.recommendation}`,
+                    `\nYour colleagues' analyses:\n${peers.map((p) => `${p.agentName} (${p.agentRole}): ${p.summary} | Recommends: ${p.recommendation}`).join("\n\n")}`,
+                    `\nReact to what your colleagues said. Be specific about who you agree or disagree with and why. State whether your overall position has changed.`,
+                ].join("\n");
+
+                return callGeminiAgent({
+                    systemPrompt,
+                    userPrompt,
+                    schema: DEBATE_SCHEMA,
+                    temperature: Math.min((agent.temperature ?? 0.5) + 0.1, 1.0),
+                })
+                    .then((debate) => {
+                        newMemories.push(...extractDebateMemories(agent, debate, businessIdea, sessionId));
+                        return { ...round1, debate };
+                    })
+                    .catch(() => ({ ...round1, debate: null }));
+            })
+        )
+        : round1Results;
+
+    // ── Orchestrator synthesizes both rounds ──────────────────────────────────
     const orchestratorMemories = retrieveRelevantMemories(memories, orchestrator.id, businessIdea);
     const orchestratorMemoryBlock = buildMemoryContext(orchestratorMemories);
     memoriesInjected[orchestrator.id] = orchestratorMemories.length;
@@ -171,9 +247,21 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
         orchestrator.systemPrompt,
     ].filter(Boolean).join("\n\n");
 
+    const debateSummary = specialistResults
+        .filter((s) => s.debate)
+        .map((s) => `${s.agentName}: position changed=${s.debate.positionChanged}, updated position: ${s.debate.updatedPosition}`)
+        .join("\n");
+
     const orchestratorResult = await callGeminiAgent({
         systemPrompt: orchestratorSystemPrompt,
-        userPrompt: `Business idea: ${businessIdea}\n\nSpecialist outputs:\n${JSON.stringify(specialistResults, null, 2)}\n\nSummarize the final recommendation as the orchestrator.`,
+        userPrompt: [
+            `Business idea: ${businessIdea}`,
+            `\nRound 1 — Initial specialist analyses:\n${JSON.stringify(round1Results.map((r) => ({ agentName: r.agentName, summary: r.summary, recommendation: r.recommendation })), null, 2)}`,
+            specialists.length >= 2
+                ? `\nRound 2 — After debate:\n${debateSummary}`
+                : "",
+            `\nSynthesize the final recommendation. Note where agents reached consensus and where disagreements remain unresolved.`,
+        ].filter(Boolean).join("\n"),
         schema: ORCHESTRATOR_SCHEMA,
         temperature: orchestrator.temperature ?? 0.2,
     });

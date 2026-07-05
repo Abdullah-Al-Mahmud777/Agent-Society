@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Plus, Power, Copy, Trash2, AlertCircle, Sparkles } from "lucide-react";
 
 import {
 	AI_PROVIDERS,
@@ -14,6 +15,10 @@ import {
 	agentInputSchema,
 	createAgentDefaults,
 } from "../../lib/agent-builder-schema";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Textarea, Select } from "@/components/ui/Input";
+import { cn } from "@/components/ui/cn";
 
 function buildFormState(agent) {
 	if (!agent) {
@@ -53,25 +58,12 @@ function mapErrors(error) {
 	}, {});
 }
 
-function FormField({ label, error, children, hint }) {
-	return (
-		<label className="block space-y-2">
-			<div className="flex items-center justify-between gap-3">
-				<span className="text-sm font-medium text-white/80">{label}</span>
-				{hint ? <span className="text-xs text-white/45">{hint}</span> : null}
-			</div>
-			{children}
-			{error ? <p className="text-sm text-rose-300">{error}</p> : null}
-		</label>
-	);
-}
-
 function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between gap-2">
-				<span className="text-sm font-medium text-white/80">{label}</span>
-				<span className="text-xs tabular-nums text-white/35">{Math.round(value * 100)}%</span>
+				<span className="text-sm font-medium text-ink-muted">{label}</span>
+				<span className="text-xs tabular-nums text-ink-faint">{Math.round(value * 100)}%</span>
 			</div>
 			<input
 				type="range"
@@ -80,9 +72,9 @@ function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
 				step="0.05"
 				value={value}
 				onChange={(e) => onChange(Number(e.target.value))}
-				className="w-full accent-cyan-300"
+				className="w-full accent-brand-cyan"
 			/>
-			<div className="flex justify-between text-[11px] text-white/35">
+			<div className="flex justify-between text-[11px] text-ink-faint">
 				<span>{leftLabel}</span>
 				<span>{rightLabel}</span>
 			</div>
@@ -107,30 +99,30 @@ function CoreValuesInput({ values, onChange }) {
 	return (
 		<div className="space-y-3">
 			<div className="flex gap-2">
-				<input
+				<Input
 					type="text"
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
 					onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addValue(); } }}
 					disabled={values.length >= 4}
-					className="flex-1 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-40"
+					className="py-2.5"
 					placeholder={values.length >= 4 ? "Max 4 values" : 'e.g. "data over gut feel"'}
 				/>
-				<button
+				<Button
 					type="button"
+					variant="secondary"
 					onClick={addValue}
 					disabled={values.length >= 4 || !draft.trim()}
-					className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5 disabled:opacity-40"
 				>
 					Add
-				</button>
+				</Button>
 			</div>
 			{values.length > 0 && (
 				<div className="flex flex-wrap gap-2">
 					{values.map((v, i) => (
-						<span key={i} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+						<span key={i} className="flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass px-3 py-1 text-xs text-ink-muted">
 							{v}
-							<button type="button" onClick={() => removeValue(i)} className="text-white/40 hover:text-white/80">×</button>
+							<button type="button" onClick={() => removeValue(i)} className="text-ink-faint hover:text-ink">×</button>
 						</span>
 					))}
 				</div>
@@ -147,11 +139,12 @@ function IconPicker({ value, onChange }) {
 					key={icon}
 					type="button"
 					onClick={() => onChange(icon)}
-					className={`rounded-2xl border px-3 py-2 text-lg transition ${
+					className={cn(
+						"rounded-2xl border px-3 py-2 text-lg transition",
 						value === icon
-							? "border-cyan-300/60 bg-cyan-300/10"
-							: "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
-					}`}
+							? "border-brand-cyan/60 bg-brand-cyan/10"
+							: "border-glass-border bg-glass hover:border-glass-border-strong hover:bg-glass-strong"
+					)}
 				>
 					{icon}
 				</button>
@@ -223,47 +216,39 @@ export default function AgentEditor({
 	};
 
 	return (
-		<section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-			<div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
+		<Card variant="default" radius="panel" className="p-6">
+			<div className="flex flex-col gap-4 border-b border-glass-border pb-5 lg:flex-row lg:items-center lg:justify-between">
 				<div>
-					<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">Agent editor</p>
-					<h2 className="mt-2 text-xl font-semibold text-white">
+					<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
+						Agent editor
+					</p>
+					<h2 className="mt-2 text-xl font-semibold text-ink">
 						{isEditing ? "Edit agent" : "Create a new agent"}
 					</h2>
-					<p className="mt-2 text-sm leading-6 text-white/65">Validate and save every field locally. Nothing leaves the browser unless you wire it to an API later.</p>
+					<p className="mt-2 text-sm leading-6 text-ink-muted">
+						Validate and save every field locally. Personality traits shape how the agent debates.
+					</p>
 				</div>
 
 				<div className="flex flex-wrap gap-2">
-					<button
-						type="button"
-						onClick={onNew}
-						className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5"
-					>
-						New agent
-					</button>
+					<Button variant="secondary" size="sm" onClick={onNew}>
+						<Plus className="h-3.5 w-3.5" />
+						New
+					</Button>
 					{agent ? (
 						<>
-							<button
-								type="button"
-								onClick={() => onToggleEnabled(agent.id)}
-								className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5"
-							>
+							<Button variant="secondary" size="sm" onClick={() => onToggleEnabled(agent.id)}>
+								<Power className="h-3.5 w-3.5" />
 								{agent.isEnabled ? "Disable" : "Enable"}
-							</button>
-							<button
-								type="button"
-								onClick={() => onDuplicate(agent.id)}
-								className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5"
-							>
+							</Button>
+							<Button variant="secondary" size="sm" onClick={() => onDuplicate(agent.id)}>
+								<Copy className="h-3.5 w-3.5" />
 								Duplicate
-							</button>
-							<button
-								type="button"
-								onClick={() => onDelete(agent.id)}
-								className="rounded-full border border-rose-400/30 px-4 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-400/10"
-							>
+							</Button>
+							<Button variant="danger" size="sm" onClick={() => onDelete(agent.id)}>
+								<Trash2 className="h-3.5 w-3.5" />
 								Delete
-							</button>
+							</Button>
 						</>
 					) : null}
 				</div>
@@ -271,91 +256,85 @@ export default function AgentEditor({
 
 			<form className="mt-6 space-y-6" onSubmit={handleSave}>
 				{Object.keys(errors).length ? (
-					<div className="rounded-3xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+					<div className="flex items-center gap-2 rounded-card border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+						<AlertCircle className="h-4 w-4 shrink-0" />
 						Please fix the highlighted fields before saving.
 					</div>
 				) : null}
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					<FormField label="Name" error={errors.name}>
-						<input
+					<Field label="Name" error={errors.name}>
+						<Input
 							type="text"
 							value={form.name}
 							onChange={(event) => updateField("name", event.target.value)}
-							className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 							placeholder="Agent name"
 						/>
-					</FormField>
+					</Field>
 
-					<FormField label="Role" error={errors.role}>
-						<input
+					<Field label="Role" error={errors.role}>
+						<Input
 							type="text"
 							value={form.role}
 							onChange={(event) => updateField("role", event.target.value)}
-							className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 							placeholder="e.g. Product strategist"
 						/>
-					</FormField>
+					</Field>
 				</div>
 
-				<FormField label="Description" error={errors.description}>
-					<textarea
+				<Field label="Description" error={errors.description}>
+					<Textarea
 						rows={3}
 						value={form.description}
 						onChange={(event) => updateField("description", event.target.value)}
-						className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 						placeholder="What does this agent do?"
 					/>
-				</FormField>
+				</Field>
 
-				<FormField label="Goal" error={errors.goal}>
-					<textarea
+				<Field label="Goal" error={errors.goal}>
+					<Textarea
 						rows={3}
 						value={form.goal}
 						onChange={(event) => updateField("goal", event.target.value)}
-						className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 						placeholder="What outcome should it deliver?"
 					/>
-				</FormField>
+				</Field>
 
-				<FormField label="System prompt" error={errors.systemPrompt} hint="This is the exact instruction sent to the model">
-					<textarea
+				<Field label="System prompt" error={errors.systemPrompt} hint="The exact instruction sent to the model">
+					<Textarea
 						rows={6}
 						value={form.systemPrompt}
 						onChange={(event) => updateField("systemPrompt", event.target.value)}
-						className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 						placeholder={DEFAULT_SYSTEM_PROMPT}
 					/>
-				</FormField>
+				</Field>
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					<FormField label="AI provider" error={errors.aiProvider}>
-						<select
+					<Field label="AI provider" error={errors.aiProvider}>
+						<Select
 							value={form.aiProvider}
 							onChange={(event) => handleProviderChange(event.target.value)}
-							className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 						>
 							{AI_PROVIDERS.map((provider) => (
 								<option key={provider} value={provider}>
 									{PROVIDER_LABELS[provider]}
 								</option>
 							))}
-						</select>
-					</FormField>
+						</Select>
+					</Field>
 
-					<FormField label="Model" error={errors.model} hint={providerHint}>
-						<input
+					<Field label="Model" error={errors.model} hint={providerHint}>
+						<Input
 							type="text"
 							value={form.model}
 							onChange={(event) => updateField("model", event.target.value)}
-							className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 							placeholder={PROVIDER_DEFAULT_MODELS[form.aiProvider]}
 						/>
-					</FormField>
+					</Field>
 				</div>
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					<FormField label={`Temperature: ${form.temperature.toFixed(1)}`} error={errors.temperature}>
+					<Field label={`Temperature: ${form.temperature.toFixed(1)}`} error={errors.temperature}>
 						<input
 							type="range"
 							min="0"
@@ -363,71 +342,73 @@ export default function AgentEditor({
 							step="0.1"
 							value={form.temperature}
 							onChange={(event) => updateField("temperature", Number(event.target.value))}
-							className="w-full accent-cyan-300"
+							className="w-full accent-brand-cyan"
 						/>
-					</FormField>
+					</Field>
 
-					<FormField label="Max tokens" error={errors.maxTokens}>
-						<input
+					<Field label="Max tokens" error={errors.maxTokens}>
+						<Input
 							type="number"
 							min="1"
 							max="32768"
 							step="1"
 							value={form.maxTokens}
 							onChange={(event) => updateField("maxTokens", Number(event.target.value))}
-							className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 						/>
-					</FormField>
+					</Field>
 				</div>
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					<FormField label="Icon" error={errors.icon}>
+					<Field label="Icon" error={errors.icon}>
 						<div className="space-y-3">
-							<input
+							<Input
 								type="text"
 								value={form.icon}
 								onChange={(event) => updateField("icon", event.target.value)}
-								className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 								placeholder="🤖"
 							/>
 							<IconPicker value={form.icon} onChange={(icon) => updateField("icon", icon)} />
 						</div>
-					</FormField>
+					</Field>
 
-					<FormField label="Color" error={errors.color}>
+					<Field label="Color" error={errors.color}>
 						<div className="flex items-center gap-3">
 							<input
 								type="color"
 								value={form.color}
 								onChange={(event) => updateField("color", event.target.value)}
-								className="h-12 w-14 cursor-pointer rounded-2xl border border-white/10 bg-transparent p-1"
+								className="h-12 w-14 cursor-pointer rounded-2xl border border-glass-border bg-transparent p-1"
 							/>
-							<input
+							<Input
 								type="text"
 								value={form.color}
 								onChange={(event) => updateField("color", event.target.value)}
-								className="flex-1 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
 								placeholder={DEFAULT_AGENT_COLOR}
 							/>
 						</div>
-					</FormField>
+					</Field>
 				</div>
 
-				<label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/80">
+				<label className="flex items-center gap-3 rounded-2xl border border-glass-border bg-black/15 px-4 py-3 text-sm text-ink-muted">
 					<input
 						type="checkbox"
 						checked={form.isEnabled}
 						onChange={(event) => updateField("isEnabled", event.target.checked)}
-						className="h-4 w-4 rounded border-white/20 bg-slate-950 text-cyan-400 focus:ring-cyan-300"
+						className="h-4 w-4 rounded border-white/20 bg-navy-950 text-brand-cyan focus:ring-brand-cyan"
 					/>
 					<span>Enabled for routing</span>
 				</label>
 
 				{/* Personality */}
-				<div className="space-y-5 rounded-3xl border border-white/10 bg-black/15 p-5">
+				<div className="space-y-5 rounded-panel border border-glass-border bg-black/15 p-5">
 					<div>
-						<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">Personality</p>
-						<p className="mt-1 text-sm text-white/50">These traits shape how this agent reasons, communicates, and responds under pressure.</p>
+						<p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
+							<Sparkles className="h-3.5 w-3.5" />
+							Personality
+						</p>
+						<p className="mt-1 text-sm text-ink-subtle">
+							These traits shape how this agent reasons, communicates, and responds under pressure.
+						</p>
 					</div>
 
 					<div className="grid gap-5 lg:grid-cols-2">
@@ -461,49 +442,43 @@ export default function AgentEditor({
 						/>
 					</div>
 
-					<FormField label="Core values" hint="Up to 4 — press Enter to add">
+					<Field label="Core values" hint="Up to 4 — press Enter to add">
 						<CoreValuesInput
 							values={form.coreValues}
 							onChange={(v) => updateField("coreValues", v)}
 						/>
-					</FormField>
+					</Field>
 
-					<FormField label="Speaking style">
+					<Field label="Speaking style">
 						<div className="flex gap-2">
 							{SPEAKING_STYLES.map((style) => (
 								<button
 									key={style}
 									type="button"
 									onClick={() => updateField("speakingStyle", style)}
-									className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-medium transition ${
+									className={cn(
+										"flex-1 rounded-2xl border px-3 py-2.5 text-sm font-medium transition",
 										form.speakingStyle === style
-											? "border-cyan-300/60 bg-cyan-300/10 text-cyan-200"
-											: "border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:bg-white/10"
-									}`}
+											? "border-brand-cyan/60 bg-brand-cyan/10 text-cyan-200"
+											: "border-glass-border bg-glass text-ink-subtle hover:border-glass-border-strong hover:bg-glass-strong"
+									)}
 								>
 									{SPEAKING_STYLE_LABELS[style]}
 								</button>
 							))}
 						</div>
-					</FormField>
+					</Field>
 				</div>
 
-				<div className="flex flex-wrap gap-3 border-t border-white/10 pt-5">
-					<button
-						type="submit"
-						className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-					>
+				<div className="flex flex-wrap gap-3 border-t border-glass-border pt-5">
+					<Button type="submit" variant="primary" size="lg">
 						{isEditing ? "Save agent" : "Create agent"}
-					</button>
-					<button
-						type="button"
-						onClick={handleReset}
-						className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/5"
-					>
+					</Button>
+					<Button type="button" variant="secondary" size="lg" onClick={handleReset}>
 						Reset form
-					</button>
+					</Button>
 				</div>
 			</form>
-		</section>
+		</Card>
 	);
 }
