@@ -57,17 +57,8 @@ export default function SocietyPage() {
     const handleSend = async () => {
         if (!prompt.trim() || loading || !selectedAgent) return;
 
-        if (!providerConfig) {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "error",
-                    content: "No LLM provider configured. Please configure a provider in the Providers page first.",
-                    timestamp: new Date().toISOString(),
-                },
-            ]);
-            return;
-        }
+        // Note: Even if providerConfig is null, send to API
+        // API route has environment variable fallback for production
 
         const userMessage = {
             role: "user",
@@ -86,7 +77,7 @@ export default function SocietyPage() {
                 body: JSON.stringify({
                     prompt: userMessage.content,
                     agent: selectedAgent,
-                    providerConfig: providerConfig,
+                    providerConfig: providerConfig, // Can be null - API will use env vars
                 }),
             });
 
