@@ -151,6 +151,52 @@ export default function SocietyPage() {
             <div className="mx-auto flex h-screen max-w-7xl gap-6 overflow-x-hidden px-5 py-8">
                 {/* Sidebar - Agent Selection */}
                 <div className="w-80 shrink-0 space-y-4">
+                    {/* Provider Status Card */}
+                    {!providerConfig ? (
+                        <Card variant="default" className="border-amber-400/30 bg-amber-400/10 p-4">
+                            <div className="flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 shrink-0 text-amber-300" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-amber-200">
+                                        No Provider Configured
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/70">
+                                        Configure an LLM provider to enable full features.
+                                    </p>
+                                    <Link href="/providers">
+                                        <Button variant="secondary" size="sm" className="mt-3 w-full">
+                                            <Settings className="h-3.5 w-3.5" />
+                                            Configure Provider
+                                        </Button>
+                                    </Link>
+                                    <p className="mt-2 text-xs text-amber-100/60">
+                                        Using fallback (environment variables)
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                    ) : (
+                        <Card variant="default" className="border-emerald-400/30 bg-emerald-400/10 p-4">
+                            <div className="flex items-start gap-3">
+                                <Check className="h-5 w-5 shrink-0 text-emerald-300" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-emerald-200">
+                                        Provider Active
+                                    </p>
+                                    <p className="mt-1 text-xs text-emerald-200/70">
+                                        {providerConfig.providerName} • {providerConfig.selectedModel}
+                                    </p>
+                                    <Link href="/providers">
+                                        <Button variant="secondary" size="sm" className="mt-3 w-full">
+                                            <Settings className="h-3.5 w-3.5" />
+                                            Manage Providers
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </div>
+                        </Card>
+                    )}
+
                     <Card variant="strong" className="p-5">
                         <div className="mb-4 flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-cyan-400" />
