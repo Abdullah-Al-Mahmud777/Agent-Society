@@ -5,6 +5,8 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { decryptApiKey } from "./encryption";
 import { PROVIDERS } from "./db-schema";
 
@@ -140,8 +142,6 @@ export class LLMProviderFactory {
    */
   createOpenAIClient() {
     try {
-      // Dynamic import to avoid bundling if not used
-      const OpenAI = require("openai").default;
       const openai = new OpenAI({ apiKey: this.apiKey });
       
       return {
@@ -176,7 +176,6 @@ export class LLMProviderFactory {
    */
   createAnthropicClient() {
     try {
-      const Anthropic = require("@anthropic-ai/sdk").default;
       const anthropic = new Anthropic({ apiKey: this.apiKey });
       
       return {
