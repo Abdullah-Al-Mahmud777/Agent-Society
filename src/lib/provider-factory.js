@@ -2,6 +2,8 @@
  * Dynamic LLM Provider Factory
  * 
  * Factory Pattern to dynamically initialize LLM clients based on user configuration
+ * 
+ * Updated: Fixed for Next.js 16/Turbopack compatibility with static ESM imports
  */
 
 import { GoogleGenAI } from "@google/genai";
