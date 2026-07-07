@@ -84,7 +84,7 @@ function extractRetryDelay(errorMessage) {
 }
 
 async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature = 0.2 }, retries = 3) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = HARDCODED_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
@@ -447,6 +447,9 @@ export async function GET(request) {
         return NextResponse.json(
             { success: false, error: error instanceof Error ? error.message : "Unexpected server error" },
             { status: 500 }
+        );
+    }
+}
         );
     }
 }

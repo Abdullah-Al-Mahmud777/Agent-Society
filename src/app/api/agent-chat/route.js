@@ -3,6 +3,9 @@ import { buildPersonalityContext } from "@/lib/personality";
 import { createProvider } from "@/lib/provider-factory";
 import { encryptApiKey } from "@/lib/encryption";
 
+// HARDCODED API KEY - Replace with your actual Gemini API key
+const HARDCODED_GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+
 export const runtime = "nodejs";
 
 /**
@@ -66,7 +69,8 @@ export async function POST(request) {
             const envModel = process.env.DEFAULT_MODEL || "gemini-2.5-flash";
             
             // Check for API key - CRITICAL: No NEXT_PUBLIC_ prefix
-            const envApiKey = process.env.GEMINI_API_KEY || 
+            const envApiKey = HARDCODED_GEMINI_API_KEY || 
+                             process.env.GEMINI_API_KEY || 
                              process.env.OPENAI_API_KEY || 
                              process.env.ANTHROPIC_API_KEY;
             
