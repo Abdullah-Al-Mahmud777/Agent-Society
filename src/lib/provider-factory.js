@@ -5,6 +5,8 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { decryptApiKey } from "./encryption";
 import { PROVIDERS } from "./db-schema";
 
@@ -22,16 +24,16 @@ export class LLMProviderFactory {
   /**
    * Get the appropriate LLM client instance
    */
-  async getClient() {
+  getClient() {
     switch (this.provider) {
       case PROVIDERS.GEMINI:
         return this.createGeminiClient();
       
       case PROVIDERS.OPENAI:
-        return await this.createOpenAIClient();
+        return this.createOpenAIClient();
       
       case PROVIDERS.ANTHROPIC:
-        return await this.createAnthropicClient();
+        return this.createAnthropicClient();
       
       default:
         throw new Error(`Unsupported provider: ${this.provider}`);
@@ -138,10 +140,8 @@ export class LLMProviderFactory {
    * Create OpenAI client
    * Note: Requires OpenAI SDK to be installed: npm install openai
    */
-  async createOpenAIClient() {
+  createOpenAIClient() {
     try {
-      // Dynamic import to avoid bundling if not used
-      const { default: OpenAI } = await import("openai");
       const openai = new OpenAI({ apiKey: this.apiKey });
       
       return {
@@ -176,7 +176,6 @@ export class LLMProviderFactory {
    */
   createAnthropicClient() {
     try {
-      const Anthropic = require("@anthropic-ai/sdk").default;
       const anthropic = new Anthropic({ apiKey: this.apiKey });
       
       return {
@@ -241,7 +240,7 @@ export function createProvider(userProviderConfig) {
  */
 export async function executeAgentTask(userProviderConfig, prompt, options = {}) {
   const factory = new LLMProviderFactory(userProviderConfig);
-  const client = await factory.getClient();
+  const client = factory.getClient();
   
   return await client.generateContent(prompt, options);
 }
