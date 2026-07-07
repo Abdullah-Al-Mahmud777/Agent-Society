@@ -13,7 +13,6 @@ import Link from "next/link";
 
 export default function SocietyPage() {
     const [mounted, setMounted] = useState(false);
-    const [hydrated, setHydrated] = useState(false);
     const [agents, setAgents] = useState([]);
     const [selectedAgent, setSelectedAgent] = useState(null);
     const [prompt, setPrompt] = useState("");
@@ -23,18 +22,18 @@ export default function SocietyPage() {
 
     useEffect(() => {
         setMounted(true);
+        
         // Rehydrate store
         useAgentBuilderStore.persist.rehydrate();
         
         // Get agents after hydration
         const unsubscribe = useAgentBuilderStore.subscribe((state) => {
             setAgents(state.agents);
-            setHydrated(true);
         });
         
         // Initial load
-        setAgents(useAgentBuilderStore.getState().agents);
-        setHydrated(true);
+        const state = useAgentBuilderStore.getState();
+        setAgents(state.agents);
         
         // Load active provider
         try {
@@ -48,11 +47,11 @@ export default function SocietyPage() {
     }, []);
 
     useEffect(() => {
-        if (mounted && hydrated && agents.length > 0 && !selectedAgent) {
+        if (mounted && agents.length > 0 && !selectedAgent) {
             const enabledAgent = agents.find((a) => a.isEnabled) || agents[0];
             setSelectedAgent(enabledAgent);
         }
-    }, [mounted, hydrated, agents, selectedAgent]);
+    }, [mounted, agents, selectedAgent]);
 
     const handleSend = async () => {
         if (!prompt.trim() || loading || !selectedAgent) return;
@@ -131,26 +130,16 @@ export default function SocietyPage() {
         setMessages([]);
     };
 
-    if (!mounted || !hydrated) {
-        return (
-            <main className="relative min-h-screen overflow-hidden bg-navy-900 text-ink">
-                <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.14),_transparent_28%),linear-gradient(180deg,_#0b1526_0%,_#07111f_100%)]" />
-                <div className="flex h-screen items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-                </div>
-            </main>
-        );
-    }
-
     const enabledAgents = agents.filter((a) => a.isEnabled);
 
     return (
-        <main className="relative min-h-screen w-full max-w-full overflow-x-hidden bg-navy-900 text-ink">
+        <main className="relative flex min-h-screen w-full max-w-full flex-col overflow-x-hidden bg-navy-900 text-ink">
             <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.14),_transparent_28%),linear-gradient(180deg,_#0b1526_0%,_#07111f_100%)]" />
 
-            <div className="mx-auto flex h-screen max-w-7xl gap-6 overflow-x-hidden px-5 py-8">
-                {/* Sidebar - Agent Selection */}
-                <div className="w-80 shrink-0 space-y-4">
+            {/* Full height flex layout */}
+            <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-5 py-8">
+                {/* Sidebar - Fixed width with independent scrolling */}
+                <div className="flex w-80 flex-shrink-0 flex-col space-y-4 overflow-y-auto">
                     {/* Provider Status Card */}
                     {!providerConfig ? (
                         <Card variant="default" className="border-amber-400/30 bg-amber-400/10 p-4">
@@ -205,9 +194,16 @@ export default function SocietyPage() {
                         
                         {enabledAgents.length === 0 ? (
                             <div className="rounded-card border border-dashed border-glass-border p-4 text-center">
-                                <p className="text-sm text-ink-faint">
-                                    No enabled agents. Go to Builder to create and enable agents.
-                                </p>
+                                {!mounted ? (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
+                                        <p className="text-sm text-ink-faint">Loading agents...</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-ink-faint">
+                                        No enabled agents. Go to Builder to create and enable agents.
+                                    </p>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -286,9 +282,9 @@ export default function SocietyPage() {
                     )}
                 </div>
 
-                {/* Main Chat Area */}
-                <div className="flex flex-1 flex-col">
-                    <Card variant="strong" className="mb-4 p-5">
+                {/* Main Chat Area - Flexible width with independent scrolling */}
+                <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+                    <Card variant="strong" className="mb-4 flex-shrink-0 p-5">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h1 className="text-2xl font-semibold text-ink">Agent Society</h1>

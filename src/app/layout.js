@@ -7,6 +7,8 @@ const geistSans = Geist({
 	subsets: ["latin"],
 	display: "swap",
 	preload: true,
+	fallback: ["system-ui", "arial"],
+	adjustFontFallback: true,
 });
 
 const geistMono = Geist_Mono({
@@ -14,6 +16,8 @@ const geistMono = Geist_Mono({
 	subsets: ["latin"],
 	display: "swap",
 	preload: true,
+	fallback: ["monospace"],
+	adjustFontFallback: true,
 });
 
 export const metadata = {
@@ -27,8 +31,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
 	return (
-		<html lang="en">
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+		<html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
 				<AppShell>{children}</AppShell>
 			</body>
 		</html>

@@ -44,25 +44,92 @@ export class LLMProviderFactory {
   createGeminiClient() {
     try {
       const genAI = new GoogleGenAI({ apiKey: this.apiKey });
+      
       return {
         provider: PROVIDERS.GEMINI,
         client: genAI,
         model: this.model,
         
         async generateContent(prompt, options = {}) {
-          const response = await genAI.models.generateContent({
-            model: this.model,
-            contents: prompt,
-            config: {
+          try {
+            console.log("🔵 Gemini API Call Starting...");
+            console.log("- Model:", this.model);
+            console.log("- API Key present:", !!this.apiKey);
+            console.log("- API Key length:", this.apiKey?.length || 0);
+            console.log("- API Key prefix:", this.apiKey?.substring(0, 6) || "MISSING");
+            console.log("- Prompt length:", prompt.length);
+            console.log("- Temperature:", options.temperature ?? 0.7);
+            console.log("- Max tokens:", options.maxTokens ?? 2048);
+            console.log("- Has system prompt:", !!options.systemPrompt);
+            
+            // Build the generation config
+            const config = {
               temperature: options.temperature ?? 0.7,
               maxOutputTokens: options.maxTokens ?? 2048,
-              systemInstruction: options.systemPrompt,
-            },
-          });
-          return response.text;
+            };
+            
+            // Build the request object for @google/genai v2.10.0
+            const requestParams = {
+              model: this.model,
+              contents: prompt, // SDK accepts string directly
+              config,
+            };
+            
+            // Add system instruction if provided
+            if (options.systemPrompt) {
+              requestParams.systemInstruction = options.systemPrompt;
+            }
+            
+            console.log("- Request config:", JSON.stringify(config, null, 2));
+            console.log("- Has system instruction:", !!requestParams.systemInstruction);
+            
+            // Call Gemini API using ai.models.generateContent()
+            // This is the correct method for @google/genai v2.10.0
+            const result = await genAI.models.generateContent(requestParams);
+            
+            console.log("✅ Gemini API Response received");
+            console.log("- Response type:", typeof result);
+            console.log("- Response has 'text' property:", 'text' in result);
+            
+            // Extract text from response
+            // For @google/genai v2.10.0, result.text is a property
+            const responseText = result.text;
+            
+            if (!responseText) {
+              console.error("❌ No text in Gemini response");
+              console.error("- Response keys:", Object.keys(result || {}));
+              throw new Error("Gemini API returned empty response");
+            }
+            
+            console.log("✅ Response text extracted, length:", responseText.length);
+            return responseText;
+            
+          } catch (error) {
+            console.error("❌ Gemini API Error:");
+            console.error("- Error name:", error.name);
+            console.error("- Error message:", error.message);
+            console.error("- Error stack:", error.stack);
+            
+            // Check for specific Gemini API errors
+            if (error.message?.includes("API_KEY_INVALID") || error.message?.includes("API key") || error.message?.includes("invalid")) {
+              throw new Error("Invalid Gemini API key. Please check your configuration.");
+            }
+            if (error.message?.includes("429") || error.message?.includes("quota") || error.message?.includes("RESOURCE_EXHAUSTED")) {
+              throw new Error("Gemini API quota exceeded. Please check your usage limits.");
+            }
+            if (error.message?.includes("model") || error.message?.includes("NOT_FOUND")) {
+              throw new Error(`Invalid model: ${this.model}. Please check the model name.`);
+            }
+            if (error.message?.includes("PERMISSION_DENIED")) {
+              throw new Error("Permission denied. Check your API key has access to this model.");
+            }
+            
+            throw new Error(`Gemini API error: ${error.message}`);
+          }
         },
       };
     } catch (error) {
+      console.error("❌ Failed to initialize Gemini client:", error);
       throw new Error(`Failed to initialize Gemini client: ${error.message}`);
     }
   }

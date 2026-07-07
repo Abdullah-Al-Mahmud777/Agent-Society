@@ -37,10 +37,18 @@ export function getProviderById(id) {
 
 /**
  * Get active provider for a user
+ * If no userId provided, returns the first active provider (for single-user apps)
  */
-export function getActiveProvider(userId) {
+export function getActiveProvider(userId = "default-user") {
   const providers = getAllProviders();
-  return providers.find(p => p.userId === userId && p.isActive);
+  
+  // If userId provided, find exact match
+  if (userId) {
+    return providers.find(p => p.userId === userId && p.isActive);
+  }
+  
+  // Otherwise return any active provider (for single-user demo apps)
+  return providers.find(p => p.isActive);
 }
 
 /**
