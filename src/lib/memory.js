@@ -292,6 +292,366 @@ export function buildAgentContext(agent, provider = 'gemini', maxHistory = 10) {
 }
 
 // ============================================================================
+// AGENT-SPECIFIC MEMORY FUNCTIONS
+// ============================================================================
+
+/**
+ * Long-term memory storage for agent-specific memories
+ * Key: agentId -> Value: Array of memory objects
+ * 
+ * @type {Map<string, Array<{type: string, content: string, timestamp: string, sessionId: string}>>}
+ */
+const agentMemoryStore = new Map();
+
+/**
+ * Maximum number of memories to keep per agent
+ * @type {number}
+ */
+const MAX_MEMORIES_PER_AGENT = 50;
+
+/**
+ * Retrieves relevant memories for a specific agent based on business context
+ * Filters memories by agent ID and optionally by content similarity
+ * 
+ * @param {Array} memories - Array of all available memories
+ * @param {string} agentId - Unique identifier for the agent
+ * @param {string} businessIdea - Business context to filter relevant memories
+ * @param {number} limit - Maximum number of memories to return (default: 5)
+ * @returns {Array} Relevant memories for the agent
+ */
+export function retrieveRelevantMemories(memories, agentId, businessIdea = '', limit = 5) {
+  try {
+    if (!Array.isArray(memories)) {
+      console.warn('[Memory] retrieveRelevantMemories: memories is not an array, returning empty');
+      return [];
+    }
+
+    // Filter memories by agent ID
+    const agentMemories = memories.filter(memory => 
+      memory.agentId === agentId || memory.agentId === 'global'
+    );
+
+    // If business context provided, filter by relevance (simple keyword matching)
+    if (businessIdea) {
+      const keywords = businessIdea.toLowerCase().split(/\s+/).filter(k => k.length > 3);
+      const scoredMemories = agentMemories.map(memory => {
+        const content = (memory.content || '').toLowerCase();
+        const score = keywords.reduce((sum, keyword) => 
+          sum + (content.includes(keyword) ? 1 : 0), 0
+        );
+        return { ...memory, score };
+      });
+
+      // Sort by relevance score and return top results
+      return scoredMemories
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(({ score, ...memory }) => memory);
+    }
+
+    // Return most recent memories if no business context
+    return agentMemories.slice(-limit);
+  } catch (error) {
+    console.error('[Memory] Error in retrieveRelevantMemories:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Builds a formatted memory context string from retrieved memories
+ * Converts memory objects into a readable format for LLM consumption
+ * 
+ * @param {Array} memories - Array of memory objects
+ * @returns {string} Formatted memory context string
+ */
+export function buildMemoryContext(memories) {
+  try {
+    if (!Array.isArray(memories) || memories.length === 0) {
+      return '';
+    }
+
+    const contextLines = memories.map((memory, index) => {
+      const type = memory.type || 'general';
+      const content = memory.content || '';
+      const timestamp = memory.timestamp ? new Date(memory.timestamp).toLocaleDateString() : '';
+      
+      return `[Memory ${index + 1} - ${type}${timestamp ? ` (${timestamp})` : ''}]: ${content}`;
+    });
+
+    return contextLines.join('\n\n');
+  } catch (error) {
+    console.error('[Memory] Error in buildMemoryContext:', error.message);
+    return '';
+  }
+}
+
+/**
+ * Extracts and structures memories from specialist agent responses
+ * Used to capture key insights, findings, and recommendations from specialist agents
+ * 
+ * @param {Object} agent - Agent configuration object
+ * @param {Object} result - Response result from the specialist agent
+ * @param {string} businessIdea - Business context for the memory
+ * @param {string} sessionId - Session identifier for tracking
+ * @returns {Array} Array of extracted memory objects
+ */
+export function extractSpecialistMemories(agent, result, businessIdea, sessionId) {
+  try {
+    const memories = [];
+    const timestamp = new Date().toISOString();
+
+    // Extract key findings
+    if (result.findings && result.findings !== 'N/A') {
+      memories.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        type: 'finding',
+        content: result.findings,
+        businessIdea,
+        sessionId,
+        timestamp,
+      });
+    }
+
+    // Extract recommendations
+    if (result.recommendation && result.recommendation !== 'N/A') {
+      memories.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        type: 'recommendation',
+        content: result.recommendation,
+        businessIdea,
+        sessionId,
+        timestamp,
+      });
+    }
+
+    // Extract risks
+    if (result.risks && result.risks !== 'N/A') {
+      memories.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        type: 'risk',
+        content: result.risks,
+        businessIdea,
+        sessionId,
+        timestamp,
+      });
+    }
+
+    // Extract confidence level
+    if (result.confidence && result.confidence !== '0%') {
+      memories.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        type: 'confidence',
+        content: `Confidence level: ${result.confidence}`,
+        businessIdea,
+        sessionId,
+        timestamp,
+      });
+    }
+
+    // Store memories in agent memory store
+    if (memories.length > 0) {
+      const existingMemories = agentMemoryStore.get(agent.id) || [];
+      const updatedMemories = [...existingMemories, ...memories];
+      
+      // Enforce memory limit
+      if (updatedMemories.length > MAX_MEMORIES_PER_AGENT) {
+        updatedMemories.splice(0, updatedMemories.length - MAX_MEMORIES_PER_AGENT);
+      }
+      
+      agentMemoryStore.set(agent.id, updatedMemories);
+    }
+
+    return memories;
+  } catch (error) {
+    console.error('[Memory] Error in extractSpecialistMemories:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Extracts and structures memories from orchestrator/CEO agent responses
+ * Used to capture final decisions, next steps, and strategic insights
+ * 
+ * @param {Object} agent - Orchestrator agent configuration object
+ * @param {Object} finalResult - Final result from the orchestrator
+ * @param {string} businessIdea - Business context for the memory
+ * @param {string} sessionId - Session identifier for tracking
+ * @returns {Object} Extracted orchestrator memory object
+ */
+export function extractOrchestratorMemory(agent, finalResult, businessIdea, sessionId) {
+  try {
+    const timestamp = new Date().toISOString();
+    
+    const memory = {
+      agentId: agent.id,
+      agentName: agent.name,
+      type: 'orchestrator-decision',
+      content: '',
+      businessIdea,
+      sessionId,
+      timestamp,
+      metadata: {
+        summary: finalResult.summary || '',
+        recommendation: finalResult.recommendation || '',
+        nextSteps: finalResult.nextSteps || [],
+        keyDecisions: finalResult.keyDecisions || [],
+        confidence: finalResult.confidence || '',
+      }
+    };
+
+    // Build comprehensive content string
+    const contentParts = [];
+    
+    if (finalResult.summary) {
+      contentParts.push(`Summary: ${finalResult.summary}`);
+    }
+    
+    if (finalResult.recommendation) {
+      contentParts.push(`Recommendation: ${finalResult.recommendation}`);
+    }
+    
+    if (finalResult.nextSteps && finalResult.nextSteps.length > 0) {
+      contentParts.push(`Next Steps:\n${finalResult.nextSteps.map((step, i) => `${i + 1}. ${step}`).join('\n')}`);
+    }
+    
+    if (finalResult.keyDecisions && finalResult.keyDecisions.length > 0) {
+      contentParts.push(`Key Decisions:\n${finalResult.keyDecisions.map((decision, i) => `${i + 1}. ${decision}`).join('\n')}`);
+    }
+    
+    memory.content = contentParts.join('\n\n');
+
+    // Store in agent memory store
+    const existingMemories = agentMemoryStore.get(agent.id) || [];
+    const updatedMemories = [...existingMemories, memory];
+    
+    // Enforce memory limit
+    if (updatedMemories.length > MAX_MEMORIES_PER_AGENT) {
+      updatedMemories.splice(0, updatedMemories.length - MAX_MEMORIES_PER_AGENT);
+    }
+    
+    agentMemoryStore.set(agent.id, updatedMemories);
+
+    return memory;
+  } catch (error) {
+    console.error('[Memory] Error in extractOrchestratorMemory:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Extracts and structures memories from debate interactions between agents
+ * Used to capture position changes, agreements, disagreements, and reasoning
+ * 
+ * @param {Object} agent - Agent participating in the debate
+ * @param {Object} debateResult - Debate result containing position changes
+ * @param {string} businessIdea - Business context for the memory
+ * @param {string} sessionId - Session identifier for tracking
+ * @returns {Object} Extracted debate memory object
+ */
+export function extractDebateMemories(agent, debateResult, businessIdea, sessionId) {
+  try {
+    if (!debateResult || debateResult.positionChanged === undefined) {
+      console.warn('[Memory] extractDebateMemories: Invalid debate result');
+      return null;
+    }
+
+    const timestamp = new Date().toISOString();
+    
+    const memory = {
+      agentId: agent.id,
+      agentName: agent.name,
+      type: 'debate-interaction',
+      content: '',
+      businessIdea,
+      sessionId,
+      timestamp,
+      metadata: {
+        positionChanged: debateResult.positionChanged,
+        updatedPosition: debateResult.updatedPosition || '',
+        agrees: debateResult.agrees || [],
+        disagrees: debateResult.disagrees || [],
+        reasoning: debateResult.reasoning || '',
+      }
+    };
+
+    // Build comprehensive content string
+    const contentParts = [];
+    
+    contentParts.push(`Position Changed: ${debateResult.positionChanged ? 'Yes' : 'No'}`);
+    
+    if (debateResult.updatedPosition) {
+      contentParts.push(`Updated Position: ${debateResult.updatedPosition}`);
+    }
+    
+    if (debateResult.agrees && debateResult.agrees.length > 0) {
+      contentParts.push(`Agrees with: ${debateResult.agrees.join(', ')}`);
+    }
+    
+    if (debateResult.disagrees && debateResult.disagrees.length > 0) {
+      contentParts.push(`Disagrees with: ${debateResult.disagrees.join(', ')}`);
+    }
+    
+    if (debateResult.reasoning) {
+      contentParts.push(`Reasoning: ${debateResult.reasoning}`);
+    }
+    
+    memory.content = contentParts.join('\n');
+
+    // Store in agent memory store
+    const existingMemories = agentMemoryStore.get(agent.id) || [];
+    const updatedMemories = [...existingMemories, memory];
+    
+    // Enforce memory limit
+    if (updatedMemories.length > MAX_MEMORIES_PER_AGENT) {
+      updatedMemories.splice(0, updatedMemories.length - MAX_MEMORIES_PER_AGENT);
+    }
+    
+    agentMemoryStore.set(agent.id, updatedMemories);
+
+    return memory;
+  } catch (error) {
+    console.error('[Memory] Error in extractDebateMemories:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Gets all memories for a specific agent
+ * 
+ * @param {string} agentId - Unique identifier for the agent
+ * @returns {Array} Array of memory objects for the agent
+ */
+export function getAgentMemories(agentId) {
+  try {
+    return agentMemoryStore.get(agentId) || [];
+  } catch (error) {
+    console.error('[Memory] Error in getAgentMemories:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Clears all memories for a specific agent
+ * 
+ * @param {string} agentId - Unique identifier for the agent
+ * @returns {boolean} Success status
+ */
+export function clearAgentMemories(agentId) {
+  try {
+    agentMemoryStore.delete(agentId);
+    console.log(`[Memory] Cleared memories for agent ${agentId}`);
+    return true;
+  } catch (error) {
+    console.error('[Memory] Error in clearAgentMemories:', error.message);
+    return false;
+  }
+}
+
+// ============================================================================
 // DATABASE INTERFACE (Future Implementation)
 // ============================================================================
 
