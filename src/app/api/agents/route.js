@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
-import { buildPersonalityContext } from "../../../lib/personality";
+import { buildPersonalityContext } from "@/lib/personality";
 import {
     retrieveRelevantMemories,
     buildMemoryContext,
     extractSpecialistMemories,
     extractOrchestratorMemory,
     extractDebateMemories,
-} from "../../../lib/memory";
+} from "@/lib/memory";
 
 export const runtime = "nodejs";
 
