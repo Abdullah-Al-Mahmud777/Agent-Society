@@ -22,16 +22,16 @@ export class LLMProviderFactory {
   /**
    * Get the appropriate LLM client instance
    */
-  getClient() {
+  async getClient() {
     switch (this.provider) {
       case PROVIDERS.GEMINI:
         return this.createGeminiClient();
       
       case PROVIDERS.OPENAI:
-        return this.createOpenAIClient();
+        return await this.createOpenAIClient();
       
       case PROVIDERS.ANTHROPIC:
-        return this.createAnthropicClient();
+        return await this.createAnthropicClient();
       
       default:
         throw new Error(`Unsupported provider: ${this.provider}`);
@@ -138,10 +138,10 @@ export class LLMProviderFactory {
    * Create OpenAI client
    * Note: Requires OpenAI SDK to be installed: npm install openai
    */
-  createOpenAIClient() {
+  async createOpenAIClient() {
     try {
       // Dynamic import to avoid bundling if not used
-      const OpenAI = require("openai").default;
+      const { default: OpenAI } = await import("openai");
       const openai = new OpenAI({ apiKey: this.apiKey });
       
       return {
@@ -241,7 +241,7 @@ export function createProvider(userProviderConfig) {
  */
 export async function executeAgentTask(userProviderConfig, prompt, options = {}) {
   const factory = new LLMProviderFactory(userProviderConfig);
-  const client = factory.getClient();
+  const client = await factory.getClient();
   
   return await client.generateContent(prompt, options);
 }

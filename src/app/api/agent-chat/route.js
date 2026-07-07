@@ -135,7 +135,7 @@ export async function POST(request) {
         console.log("- Model:", config.selectedModel);
         
         const providerFactory = createProvider(config);
-        const client = providerFactory.getClient();
+        const client = await providerFactory.getClient();
         
         console.log("✅ Provider client created successfully");
 
