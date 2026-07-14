@@ -160,7 +160,7 @@ export const useAgentBuilderStore = create(
 		{
 			name: "agent-society-builder",
 			storage,
-			version: 3,
+			version: 4,
 			migrate: (persistedState) => {
 				if (!persistedState) {
 					return {
@@ -170,6 +170,7 @@ export const useAgentBuilderStore = create(
 				}
 
 				// Backfill personality fields for agents saved before v3
+				// And update old "qwen3.7-plus" model to "qwen/qwen3.7-plus"
 				const migratedAgents = normalizeAgents(persistedState.agents ?? starterAgents).map((agent) => ({
 					riskAppetite: 0.5,
 					communicationStyle: 0.5,
@@ -178,6 +179,7 @@ export const useAgentBuilderStore = create(
 					coreValues: [],
 					speakingStyle: "formal",
 					...agent,
+					model: agent.model === "qwen3.7-plus" ? "qwen/qwen3.7-plus" : agent.model,
 				}));
 
 				const selectedAgentId = migratedAgents.some((agent) => agent.id === persistedState.selectedAgentId)

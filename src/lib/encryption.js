@@ -20,10 +20,14 @@ export function encryptApiKey(apiKey) {
   if (!apiKey) return "";
   
   try {
-    // Simple obfuscation for demo purposes
-    // In production, use proper encryption algorithm
+    console.log("🔒 encryptApiKey called!");
+    console.log("  Input apiKey (length):", apiKey.length);
+    console.log("  Input apiKey prefix:", apiKey.substring(0, Math.min(10, apiKey.length)));
     const combined = `${ENCRYPTION_KEY}:${apiKey}`;
-    return Buffer.from(combined).toString("base64");
+    console.log("  Combined (prefix):", combined.substring(0, Math.min(30, combined.length)));
+    const encrypted = Buffer.from(combined).toString("base64");
+    console.log("  Output encrypted (length):", encrypted.length);
+    return encrypted;
   } catch (error) {
     console.error("Encryption error:", error);
     throw new Error("Failed to encrypt API key");
@@ -31,22 +35,37 @@ export function encryptApiKey(apiKey) {
 }
 
 /**
- * Decrypt API key
+ * Decrypt API key - supports both old (with prefix) and new (without prefix) formats
  */
 export function decryptApiKey(encryptedKey) {
   if (!encryptedKey) return "";
   
   try {
+    console.log("🔓 decryptApiKey called!");
+    console.log("  Input encryptedKey (length):", encryptedKey.length);
     const decoded = Buffer.from(encryptedKey, "base64").toString("utf-8");
-    const [key, apiKey] = decoded.split(":");
+    console.log("  Decoded (length):", decoded.length);
+    console.log("  Decoded:", decoded);
     
-    if (key !== ENCRYPTION_KEY) {
-      throw new Error("Invalid encryption key");
+    if (decoded.includes(":")) {
+      console.log("  Decoded includes colon!");
+      const [key, apiKey] = decoded.split(":");
+      console.log("  Key part:", key);
+      console.log("  ApiKey part (length):", apiKey?.length || 0);
+      console.log("  ENCRYPTION_KEY:", ENCRYPTION_KEY);
+      if (key === ENCRYPTION_KEY && apiKey) {
+        console.log("  ✅ Returning apiKey part!");
+        return apiKey;
+      } else {
+        console.log("  ⚠️ Key didn't match or no apiKey part! Returning entire decoded!");
+        return decoded;
+      }
     }
     
-    return apiKey;
+    console.log("  ✅ No colon! Returning decoded!");
+    return decoded;
   } catch (error) {
-    console.error("Decryption error:", error);
+    console.error("❌ Decryption error:", error);
     throw new Error("Failed to decrypt API key");
   }
 }
@@ -68,11 +87,15 @@ export function maskApiKey(apiKey) {
 export function validateApiKeyFormat(providerName, apiKey) {
   if (!apiKey) return false;
   
+  if (providerName === "qwen") {
+    // For Qwen, just check that it's a non-empty string of reasonable length
+    return apiKey.length >= 10;
+  }
+  
   const formats = {
     openai: /^sk-[a-zA-Z0-9]{20,}$/,
-    // Updated Gemini format to support both old (AIza...) and new (AQ....) formats
-    gemini: /^(AIza[a-zA-Z0-9_-]{35}|AQ\.[a-zA-Z0-9_-]+)$/,
     anthropic: /^sk-ant-[a-zA-Z0-9-]{95,}$/,
+    openrouter: /^sk-or-v1-[a-f0-9]+$/, // OpenRouter key format
   };
   
   const regex = formats[providerName];

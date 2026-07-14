@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
-import { createProvider } from "@/lib/provider-factory";
+import { LLMProviderFactory, createProvider } from "@/lib/provider-factory";
 import { encryptApiKey, decryptApiKey } from "@/lib/encryption";
 import { createUserProvider } from "@/lib/db-schema";
+
+// Create a temporary modified factory that accepts plaintext apiKey
+class TestLLMProviderFactory extends LLMProviderFactory {
+  constructor(userProviderConfig, plaintextApiKey) {
+    super(userProviderConfig);
+    // Override apiKey to use plaintext directly, skip decryption
+    this.apiKey = plaintextApiKey;
+  }
+}
+
+function createTestProvider(userProviderConfig, plaintextApiKey) {
+  return new TestLLMProviderFactory(userProviderConfig, plaintextApiKey);
+}
 
 /**
  * GET - Get all providers for a user
@@ -36,15 +49,22 @@ export async function POST(request) {
     
     if (action === "test") {
       // Test connection without saving
+      console.log("🟢 /api/providers POST test action called!");
+      console.log("  providerName:", providerName);
+      console.log("  apiKey (length):", apiKey.length);
+      console.log("  apiKey prefix:", apiKey.substring(0, Math.min(10, apiKey.length)));
+      
       const testConfig = {
         userId: userId || "test-user",
         providerName,
-        encryptedApiKey: encryptApiKey(apiKey),
+        encryptedApiKey: "not-used-for-test",
         selectedModel,
         isActive: false,
       };
       
-      const provider = createProvider(testConfig);
+      console.log("  Using plaintext API key directly for test!");
+      const provider = createTestProvider(testConfig, apiKey);
+      console.log("  provider created! Calling testConnection...");
       const result = await provider.testConnection();
       
       return NextResponse.json({

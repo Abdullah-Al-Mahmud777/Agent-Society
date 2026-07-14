@@ -10,15 +10,16 @@ import { z } from "zod";
 // Provider types supported
 export const PROVIDERS = {
   OPENAI: "openai",
-  GEMINI: "gemini",
+  QWEN: "qwen",
   ANTHROPIC: "anthropic",
+  OPENROUTER: "openrouter",
 };
 
 // User Provider Configuration Schema
 export const userProviderSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().min(1), // In production, link to auth user
-  providerName: z.enum([PROVIDERS.OPENAI, PROVIDERS.GEMINI, PROVIDERS.ANTHROPIC]),
+  providerName: z.enum([PROVIDERS.OPENAI, PROVIDERS.QWEN, PROVIDERS.ANTHROPIC, PROVIDERS.OPENROUTER]),
   encryptedApiKey: z.string().min(1), // Encrypted API key
   selectedModel: z.string().min(1),
   isActive: z.boolean().default(true),
@@ -34,8 +35,9 @@ export const userProviderSchema = z.object({
 // Default models for each provider
 export const DEFAULT_MODELS = {
   [PROVIDERS.OPENAI]: "gpt-4o-mini",
-  [PROVIDERS.GEMINI]: "gemini-2.5-flash",
+  [PROVIDERS.QWEN]: "qwen/qwen3.7-plus",
   [PROVIDERS.ANTHROPIC]: "claude-3-5-sonnet-20241022",
+  [PROVIDERS.OPENROUTER]: "qwen/qwen3.7-plus",
 };
 
 // Provider display information
@@ -47,12 +49,12 @@ export const PROVIDER_INFO = {
     keyFormat: "sk-...",
     docsUrl: "https://platform.openai.com/api-keys",
   },
-  [PROVIDERS.GEMINI]: {
-    name: "Google Gemini",
-    icon: "✨",
-    models: ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-    keyFormat: "AIza... or AQ...",
-    docsUrl: "https://aistudio.google.com/app/apikey",
+  [PROVIDERS.QWEN]: {
+    name: "Alibaba Cloud Qwen (via OpenRouter)",
+    icon: "🐉",
+    models: ["qwen/qwen3.7-plus", "qwen/qwen3.5-plus", "qwen/qwen3-plus", "qwen/qwen-turbo"],
+    keyFormat: "sk-or-v1-...",
+    docsUrl: "https://openrouter.ai/keys",
   },
   [PROVIDERS.ANTHROPIC]: {
     name: "Anthropic Claude",
@@ -60,6 +62,13 @@ export const PROVIDER_INFO = {
     models: ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
     keyFormat: "sk-ant-...",
     docsUrl: "https://console.anthropic.com/",
+  },
+  [PROVIDERS.OPENROUTER]: {
+    name: "OpenRouter",
+    icon: "🔄",
+    models: ["qwen/qwen3.7-plus", "openai/gpt-4o", "anthropic/claude-3-5-sonnet", "meta-llama/llama-3.1-405b-instruct"],
+    keyFormat: "sk-or-v1-...",
+    docsUrl: "https://openrouter.ai/keys",
   },
 };
 

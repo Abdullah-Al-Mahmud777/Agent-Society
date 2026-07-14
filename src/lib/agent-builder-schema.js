@@ -1,15 +1,17 @@
 import { z } from "zod";
 
-export const AI_PROVIDERS = ["openai", "gemini"];
+export const AI_PROVIDERS = ["openai", "qwen", "openrouter"];
 
 export const PROVIDER_LABELS = {
 	openai: "OpenAI",
-	gemini: "Gemini",
+	qwen: "Qwen (via OpenRouter)",
+	openrouter: "OpenRouter",
 };
 
 export const PROVIDER_DEFAULT_MODELS = {
 	openai: "gpt-4o-mini",
-	gemini: "gemini-1.5-flash",
+	qwen: "qwen/qwen3.7-plus",
+	openrouter: "qwen/qwen3.7-plus",
 };
 
 export const ICON_OPTIONS = ["🤖", "👑", "🧠", "🎯", "📈", "⚙️", "💬", "🚀", "🧪", "🛡️"];
@@ -144,8 +146,8 @@ export function createStarterAgents() {
 			role: "Orchestrator",
 			goal: "Turn ideas into an executable plan.",
 			systemPrompt: "You are the CEO Agent. Prioritize clarity, strategy, and decision-making across the agent council.",
-			aiProvider: "gemini",
-			model: "gemini-2.5-flash",
+			aiProvider: "qwen",
+			model: "qwen/qwen3.7-plus",
 			temperature: 0.3,
 			maxTokens: 1200,
 			icon: "👑",
@@ -165,8 +167,8 @@ export function createStarterAgents() {
 			role: "Research",
 			goal: "Find the strongest market wedge.",
 			systemPrompt: "You are a market research specialist. Focus on demand, competitors, and market opportunity.",
-			aiProvider: "gemini",
-			model: "gemini-2.5-flash",
+			aiProvider: "qwen",
+			model: "qwen/qwen3.7-plus",
 			temperature: 0.4,
 			maxTokens: 1000,
 			icon: "📈",
@@ -186,8 +188,8 @@ export function createStarterAgents() {
 			role: "Product",
 			goal: "Define a clear MVP and execution path.",
 			systemPrompt: "You are a product manager specialist. Turn the business idea into a focused MVP.",
-			aiProvider: "gemini",
-			model: "gemini-2.5-flash",
+			aiProvider: "qwen",
+			model: "qwen/qwen3.7-plus",
 			temperature: 0.5,
 			maxTokens: 1100,
 			icon: "🎯",
@@ -207,8 +209,8 @@ export function createStarterAgents() {
 			role: "Developer",
 			goal: "Generate working code with best practices and proper documentation.",
 			systemPrompt: "You are a Senior Developer Agent. Write clean, well-documented code. Follow best practices, include error handling, and provide complete working examples. When asked to write code, provide full implementation with explanations.",
-			aiProvider: "gemini",
-			model: "gemini-2.5-flash",
+			aiProvider: "qwen",
+			model: "qwen/qwen3.7-plus",
 			temperature: 0.2,
 			maxTokens: 4096,
 			icon: "💻",

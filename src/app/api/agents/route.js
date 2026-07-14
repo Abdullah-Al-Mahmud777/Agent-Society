@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI, Type } from "@google/genai";
+import OpenAI from "openai";
 import { buildPersonalityContext } from "@/lib/personality";
 import {
     retrieveRelevantMemories,
@@ -11,51 +11,49 @@ import {
 
 export const runtime = "nodejs";
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const QWEN_MODEL = process.env.QWEN_MODEL || "qwen/qwen3.7-plus";
+const QWEN_BASE_URL = "https://openrouter.ai/api/v1";
 
-// Shared output schema for specialist agents
-const SPECIALIST_SCHEMA = {
-    type: Type.OBJECT,
-    properties: {
-        agent: { type: Type.STRING },
-        role: { type: Type.STRING },
-        summary: { type: Type.STRING },
-        findings: { type: Type.STRING },
-        risks: { type: Type.STRING },
-        recommendation: { type: Type.STRING },
-        confidence: { type: Type.STRING },
-    },
-    required: ["agent", "role", "summary", "findings", "risks", "recommendation", "confidence"],
-};
+// HARDCODED API KEY - Replace with your actual OpenRouter API key
+const HARDCODED_QWEN_API_KEY = "YOUR_OPENROUTER_API_KEY_HERE";
+
+// Shared output schema for specialist agents (as Zod-like description for JSON mode)
+const SPECIALIST_SCHEMA_DESCRIPTION = `You must respond only with valid JSON in the following format:
+{
+  "agent": string,
+  "role": string,
+  "summary": string,
+  "findings": string,
+  "risks": string,
+  "recommendation": string,
+  "confidence": string
+}
+All fields are required.`;
 
 // Output schema for Round 2 debate reactions
-const DEBATE_SCHEMA = {
-    type: Type.OBJECT,
-    properties: {
-        agrees: { type: Type.ARRAY, items: { type: Type.STRING } },
-        disagrees: { type: Type.ARRAY, items: { type: Type.STRING } },
-        updatedPosition: { type: Type.STRING },
-        positionChanged: { type: Type.BOOLEAN },
-        reasoning: { type: Type.STRING },
-    },
-    required: ["agrees", "disagrees", "updatedPosition", "positionChanged", "reasoning"],
-};
+const DEBATE_SCHEMA_DESCRIPTION = `You must respond only with valid JSON in the following format:
+{
+  "agrees": string[],
+  "disagrees": string[],
+  "updatedPosition": string,
+  "positionChanged": boolean,
+  "reasoning": string
+}
+All fields are required.`;
 
 // Output schema for the orchestrator / CEO agent
-const ORCHESTRATOR_SCHEMA = {
-    type: Type.OBJECT,
-    properties: {
-        agent: { type: Type.STRING },
-        role: { type: Type.STRING },
-        summary: { type: Type.STRING },
-        keyDecisions: { type: Type.ARRAY, items: { type: Type.STRING } },
-        risks: { type: Type.STRING },
-        recommendation: { type: Type.STRING },
-        nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
-        confidence: { type: Type.STRING },
-    },
-    required: ["agent", "role", "summary", "keyDecisions", "risks", "recommendation", "nextSteps", "confidence"],
-};
+const ORCHESTRATOR_SCHEMA_DESCRIPTION = `You must respond only with valid JSON in the following format:
+{
+  "agent": string,
+  "role": string,
+  "summary": string,
+  "keyDecisions": string[],
+  "risks": string,
+  "recommendation": string,
+  "nextSteps": string[],
+  "confidence": string
+}
+All fields are required.`;
 
 function getBusinessIdea(payload) {
     if (typeof payload?.businessIdea === "string" && payload.businessIdea.trim()) {
@@ -83,36 +81,39 @@ function extractRetryDelay(errorMessage) {
     return match ? Math.ceil(parseFloat(match[1])) * 1000 : 30000;
 }
 
-async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature = 0.2 }, retries = 3) {
-    const apiKey = HARDCODED_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+async function callQwenAgent({ systemPrompt, userPrompt, schemaDescription, temperature = 0.2 }, retries = 3) {
+    const apiKey = HARDCODED_QWEN_API_KEY || process.env.OPENROUTER_API_KEY || process.env.QWEN_API_KEY;
     if (!apiKey) {
-        throw new Error("Missing GEMINI_API_KEY environment variable.");
+        throw new Error("Missing OPENROUTER_API_KEY or QWEN_API_KEY environment variable.");
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const qwen = new OpenAI({
+        apiKey,
+        baseURL: QWEN_BASE_URL,
+    });
 
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-            const response = await ai.models.generateContent({
-                model: GEMINI_MODEL,
-                contents: userPrompt,
-                config: {
-                    systemInstruction: systemPrompt,
-                    temperature,
-                    responseMimeType: "application/json",
-                    responseSchema: schema,
-                },
+            const response = await qwen.chat.completions.create({
+                model: QWEN_MODEL,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `${userPrompt}\n\n${schemaDescription}` },
+                ],
+                temperature,
+                max_tokens: 2048,
+                response_format: { type: "json_object" },
             });
 
-            const content = response.text;
+            const content = response.choices[0].message.content;
             if (!content || !content.trim()) {
-                throw new Error("Gemini returned an empty response.");
+                throw new Error("Qwen returned an empty response.");
             }
 
             return JSON.parse(content.trim());
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
-            const isRateLimit = msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
+            const isRateLimit = msg.includes("429") || msg.includes("quota");
             const isTransient = msg.includes("503") || msg.includes("UNAVAILABLE");
 
             if ((isRateLimit || isTransient) && attempt < retries) {
@@ -121,7 +122,7 @@ async function callGeminiAgent({ systemPrompt, userPrompt, schema, temperature =
                 continue;
             }
 
-            throw new Error(`Gemini request failed: ${msg}`);
+            throw new Error(`Qwen request failed: ${msg}`);
         }
     }
 }
@@ -159,10 +160,10 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
                 agent.systemPrompt,
             ].filter(Boolean).join("\n\n");
 
-            return callGeminiAgent({
+            return callQwenAgent({
                 systemPrompt,
                 userPrompt: `Business idea: ${businessIdea}\n\nYour goal: ${agent.goal}\n\nProvide your specialist analysis and recommendation.`,
-                schema: SPECIALIST_SCHEMA,
+                schemaDescription: SPECIALIST_SCHEMA_DESCRIPTION,
                 temperature: agent.temperature ?? 0.4,
             })
                 .then((result) => {
@@ -221,10 +222,10 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
                     `\nReact to what your colleagues said. Be specific about who you agree or disagree with and why. State whether your overall position has changed.`,
                 ].join("\n");
 
-                return callGeminiAgent({
+                return callQwenAgent({
                     systemPrompt,
                     userPrompt,
-                    schema: DEBATE_SCHEMA,
+                    schemaDescription: DEBATE_SCHEMA_DESCRIPTION,
                     temperature: Math.min((agent.temperature ?? 0.5) + 0.1, 1.0),
                 })
                     .then((debate) => {
@@ -252,7 +253,7 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
         .map((s) => `${s.agentName}: position changed=${s.debate.positionChanged}, updated position: ${s.debate.updatedPosition}`)
         .join("\n");
 
-    const orchestratorResult = await callGeminiAgent({
+    const orchestratorResult = await callQwenAgent({
         systemPrompt: orchestratorSystemPrompt,
         userPrompt: [
             `Business idea: ${businessIdea}`,
@@ -262,7 +263,7 @@ async function runAgentsFromConfig(businessIdea, agents, memories = []) {
                 : "",
             `\nSynthesize the final recommendation. Note where agents reached consensus and where disagreements remain unresolved.`,
         ].filter(Boolean).join("\n"),
-        schema: ORCHESTRATOR_SCHEMA,
+        schemaDescription: ORCHESTRATOR_SCHEMA_DESCRIPTION,
         temperature: orchestrator.temperature ?? 0.2,
     });
 
@@ -346,7 +347,7 @@ async function runAgentsHardcoded(businessIdea) {
 
     const specialistResults = await Promise.all(
         specialistPrompts.map(({ agentName, agentRole, agentIcon, agentColor, systemPrompt, userPrompt }) =>
-            callGeminiAgent({ systemPrompt, userPrompt, schema: SPECIALIST_SCHEMA, temperature: 0.4 })
+            callQwenAgent({ systemPrompt, userPrompt, schemaDescription: SPECIALIST_SCHEMA_DESCRIPTION, temperature: 0.4 })
                 .then((result) => ({ agentName, agentRole, agentIcon, agentColor, ...result }))
                 .catch((err) => ({
                     agentName, agentRole, agentIcon, agentColor,
@@ -360,10 +361,10 @@ async function runAgentsHardcoded(businessIdea) {
         )
     );
 
-    const orchestratorResult = await callGeminiAgent({
+    const orchestratorResult = await callQwenAgent({
         systemPrompt: "You are the CEO Agent and orchestrator of the Agent Society. You receive specialist outputs and must summarize the final recommendation. Prioritize strategy, tradeoffs, next steps, and the single most important decision.",
         userPrompt: `Business idea: ${businessIdea}\n\nSpecialist outputs:\n${JSON.stringify(specialistResults, null, 2)}\n\nSummarize the final CEO view.`,
-        schema: ORCHESTRATOR_SCHEMA,
+        schemaDescription: ORCHESTRATOR_SCHEMA_DESCRIPTION,
         temperature: 0.2,
     });
 

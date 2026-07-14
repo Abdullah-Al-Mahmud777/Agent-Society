@@ -3,8 +3,8 @@ import { buildPersonalityContext } from "@/lib/personality";
 import { createProvider } from "@/lib/provider-factory";
 import { encryptApiKey } from "@/lib/encryption";
 
-// HARDCODED API KEY - Replace with your actual Gemini API key
-const HARDCODED_GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+// HARDCODED API KEY - Replace with your actual OpenRouter API key
+const HARDCODED_QWEN_API_KEY = "YOUR_OPENROUTER_API_KEY_HERE";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  * 
  * VERCEL PRODUCTION NOTES:
  * - This runs server-side only (Next.js API Route)
- * - process.env.GEMINI_API_KEY is available on server
+ * - process.env.QWEN_API_KEY is available on server
  * - Falls back to environment variables if providerConfig is not provided
  */
 export async function POST(request) {
@@ -24,9 +24,9 @@ export async function POST(request) {
     // ============================================
     console.log("========== API ROUTE DEBUG START ==========");
     console.log("Environment Check:");
-    console.log("- Is GEMINI_API_KEY present?:", !!process.env.GEMINI_API_KEY);
-    console.log("- GEMINI_API_KEY length:", process.env.GEMINI_API_KEY?.length || 0);
-    console.log("- GEMINI_API_KEY starts with:", process.env.GEMINI_API_KEY?.substring(0, 5) || "N/A");
+    console.log("- Is QWEN_API_KEY present?:", !!process.env.QWEN_API_KEY);
+    console.log("- QWEN_API_KEY length:", process.env.QWEN_API_KEY?.length || 0);
+    console.log("- QWEN_API_KEY starts with:", process.env.QWEN_API_KEY?.substring(0, 5) || "N/A");
     console.log("- DEFAULT_PROVIDER:", process.env.DEFAULT_PROVIDER || "not set");
     console.log("- DEFAULT_MODEL:", process.env.DEFAULT_MODEL || "not set");
     console.log("- NEXT_PUBLIC_ENCRYPTION_KEY present?:", !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
@@ -65,12 +65,13 @@ export async function POST(request) {
             console.log("⚠️  No providerConfig from client - attempting environment variable fallback");
             
             // Fallback to environment variables (for Vercel production)
-            const envProvider = process.env.DEFAULT_PROVIDER || "gemini";
-            const envModel = process.env.DEFAULT_MODEL || "gemini-2.5-flash";
+            const envProvider = process.env.DEFAULT_PROVIDER || "openrouter";
+            const envModel = process.env.DEFAULT_MODEL || "qwen/qwen3.7-plus";
             
             // Check for API key - CRITICAL: No NEXT_PUBLIC_ prefix
-            const envApiKey = HARDCODED_GEMINI_API_KEY || 
-                             process.env.GEMINI_API_KEY || 
+            const envApiKey = HARDCODED_QWEN_API_KEY || 
+                             process.env.OPENROUTER_API_KEY ||
+                             process.env.QWEN_API_KEY || 
                              process.env.OPENAI_API_KEY || 
                              process.env.ANTHROPIC_API_KEY;
             
@@ -78,7 +79,7 @@ export async function POST(request) {
             console.log("- Provider:", envProvider);
             console.log("- Model:", envModel);
             console.log("- API Key found?:", !!envApiKey);
-            console.log("- API Key source:", process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" : 
+            console.log("- API Key source:", process.env.QWEN_API_KEY ? "QWEN_API_KEY" : 
                                            process.env.OPENAI_API_KEY ? "OPENAI_API_KEY" :
                                            process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : "NONE");
             
@@ -97,7 +98,7 @@ export async function POST(request) {
                 console.log("✅ Config created successfully");
             } else {
                 console.log("❌ CRITICAL: No API key found in environment variables");
-                console.log("❌ Please ensure GEMINI_API_KEY is set in Vercel Environment Variables");
+                console.log("❌ Please ensure QWEN_API_KEY is set in Vercel Environment Variables");
                 console.log("❌ Available env keys:", Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')));
                 
                 return NextResponse.json(
