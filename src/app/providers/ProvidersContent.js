@@ -31,9 +31,9 @@ export default function ProvidersContent() {
   
   // Form state
   const [formData, setFormData] = useState({
-    providerName: PROVIDERS.GEMINI,
+    providerName: PROVIDERS.QWEN,
     apiKey: "",
-    selectedModel: DEFAULT_MODELS[PROVIDERS.GEMINI],
+    selectedModel: DEFAULT_MODELS[PROVIDERS.QWEN],
   });
   
   const [showApiKey, setShowApiKey] = useState(false);
@@ -137,9 +137,9 @@ export default function ProvidersContent() {
       
       // Reset form
       setFormData({
-        providerName: PROVIDERS.GEMINI,
+        providerName: PROVIDERS.QWEN,
         apiKey: "",
-        selectedModel: DEFAULT_MODELS[PROVIDERS.GEMINI],
+        selectedModel: DEFAULT_MODELS[PROVIDERS.QWEN],
       });
       setTestResult(null);
       setShowForm(false);
@@ -171,7 +171,14 @@ export default function ProvidersContent() {
     }
   };
 
-  const currentProvider = PROVIDER_INFO[formData.providerName];
+  // Fallback in case provider is legacy (e.g., Gemini) or undefined
+  const currentProvider = PROVIDER_INFO[formData.providerName] || {
+    icon: "🤖",
+    name: "Unknown Provider",
+    keyFormat: "N/A",
+    docsUrl: "#",
+    models: [],
+  };
 
   return (
     <main className="relative min-h-screen w-full max-w-full overflow-x-hidden bg-navy-900 text-ink">

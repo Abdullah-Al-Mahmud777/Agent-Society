@@ -165,7 +165,7 @@ export function clearAllHistory() {
  * @param {number} maxHistory - Maximum number of recent messages to include
  * @returns {Array|Object} Formatted conversation history for the specific provider
  */
-export function buildConversationContext(sessionId = DEFAULT_SESSION_ID, provider = 'gemini', maxHistory = 10) {
+export function buildConversationContext(sessionId = DEFAULT_SESSION_ID, provider = 'qwen', maxHistory = 10) {
   try {
     const history = getChatHistory(sessionId);
     
@@ -174,12 +174,7 @@ export function buildConversationContext(sessionId = DEFAULT_SESSION_ID, provide
     
     switch (provider.toLowerCase()) {
       case 'gemini':
-        // Gemini format: Array of strings or structured objects
-        return recentHistory.map(msg => ({
-          role: msg.role === 'assistant' ? 'model' : msg.role,
-          parts: [{ text: msg.content }]
-        }));
-      
+      case 'qwen': // Qwen uses the same compatible format as OpenAI
       case 'openai':
         // OpenAI format: Array of message objects
         return recentHistory.map(msg => ({
@@ -217,7 +212,7 @@ export function buildConversationContext(sessionId = DEFAULT_SESSION_ID, provide
  * @param {number} maxHistory - Maximum number of recent messages to include
  * @returns {Object} Complete context object for LLM API
  */
-export function buildAgentContext(agent, provider = 'gemini', maxHistory = 10) {
+export function buildAgentContext(agent, provider = 'qwen', maxHistory = 10) {
   try {
     const sessionId = agent.id || DEFAULT_SESSION_ID;
     

@@ -5,7 +5,7 @@
  * For production: Replace with proper database (PostgreSQL, MongoDB, etc.)
  */
 
-import { createUserProvider, userProviderSchema } from "./db-schema";
+import { createUserProvider, userProviderSchema, PROVIDERS } from "./db-schema";
 
 const STORAGE_KEY = "user_providers";
 
@@ -20,7 +20,15 @@ export function getAllProviders() {
     if (!stored) return [];
     
     const providers = JSON.parse(stored);
-    return providers.map(p => userProviderSchema.parse(p));
+    // Filter out legacy providers (like Gemini) that are no longer supported
+    const validProviders = providers.filter(p => 
+      Object.values(PROVIDERS).includes(p.providerName)
+    );
+    // Update storage if we removed any invalid providers
+    if (validProviders.length !== providers.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(validProviders));
+    }
+    return validProviders.map(p => userProviderSchema.parse(p));
   } catch (error) {
     console.error("Error reading providers:", error);
     return [];
