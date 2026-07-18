@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Power, Copy, Trash2, AlertCircle, Sparkles } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Plus, Power, Copy, Trash2, AlertCircle, Sparkles, History, User } from "lucide-react";
 
 import {
 	AI_PROVIDERS,
@@ -15,9 +15,10 @@ import {
 	agentInputSchema,
 	createAgentDefaults,
 } from "../../lib/agent-builder-schema";
-import { Card } from "@/components/ui/Card";
+import { AgentMemory } from "@/lib/agent-memory";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Textarea, Select } from "@/components/ui/Input";
+import { Field, Input, Textarea, Label, Select } from "@/components/ui/Input";
 import { cn } from "@/components/ui/cn";
 
 function buildFormState(agent) {
@@ -44,6 +45,8 @@ function buildFormState(agent) {
 		flexibility: agent.flexibility ?? 0.5,
 		coreValues: agent.coreValues ?? [],
 		speakingStyle: agent.speakingStyle ?? "formal",
+		expertise: agent.expertise ?? "General knowledge",
+		capabilities: agent.capabilities ?? [],
 	};
 }
 
@@ -62,8 +65,8 @@ function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between gap-2">
-				<span className="text-sm font-medium text-ink-muted">{label}</span>
-				<span className="text-xs tabular-nums text-ink-faint">{Math.round(value * 100)}%</span>
+				<span className="text-sm font-medium text-neutral-400">{label}</span>
+				<span className="text-xs tabular-nums text-neutral-600">{Math.round(value * 100)}%</span>
 			</div>
 			<input
 				type="range"
@@ -72,9 +75,9 @@ function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
 				step="0.05"
 				value={value}
 				onChange={(e) => onChange(Number(e.target.value))}
-				className="w-full accent-brand-cyan"
+				className="w-full accent-primary-500"
 			/>
-			<div className="flex justify-between text-[11px] text-ink-faint">
+			<div className="flex justify-between text-[11px] text-neutral-600">
 				<span>{leftLabel}</span>
 				<span>{rightLabel}</span>
 			</div>
@@ -82,12 +85,12 @@ function PersonalitySlider({ label, leftLabel, rightLabel, value, onChange }) {
 	);
 }
 
-function CoreValuesInput({ values, onChange }) {
+function CoreValuesInput({ values, onChange, max = 4 }) {
 	const [draft, setDraft] = useState("");
 
 	const addValue = () => {
 		const trimmed = draft.trim();
-		if (!trimmed || values.includes(trimmed) || values.length >= 4) return;
+		if (!trimmed || values.includes(trimmed) || values.length >= max) return;
 		onChange([...values, trimmed]);
 		setDraft("");
 	};
@@ -104,15 +107,15 @@ function CoreValuesInput({ values, onChange }) {
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
 					onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addValue(); } }}
-					disabled={values.length >= 4}
+					disabled={values.length >= max}
 					className="flex-1 py-2.5"
-					placeholder={values.length >= 4 ? "Max 4 values" : 'e.g. "data over gut feel"'}
+					placeholder={values.length >= max ? `Max ${max} values` : 'e.g. "data over gut feel"'}
 				/>
 				<Button
 					type="button"
 					variant="secondary"
 					onClick={addValue}
-					disabled={values.length >= 4 || !draft.trim()}
+					disabled={values.length >= max || !draft.trim()}
 					className="shrink-0"
 				>
 					Add
@@ -121,9 +124,9 @@ function CoreValuesInput({ values, onChange }) {
 			{values.length > 0 && (
 				<div className="flex w-full flex-wrap gap-2">
 					{values.map((v, i) => (
-						<span key={i} className="inline-flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass px-3 py-1 text-xs text-ink-muted">
+						<span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs text-neutral-400">
 							<span className="break-words">{v}</span>
-							<button type="button" onClick={() => removeValue(i)} className="shrink-0 text-ink-faint hover:text-ink">×</button>
+							<button type="button" onClick={() => removeValue(i)} className="shrink-0 text-neutral-600 hover:text-white">×</button>
 						</span>
 					))}
 				</div>
@@ -143,8 +146,8 @@ function IconPicker({ value, onChange }) {
 					className={cn(
 						"rounded-2xl border px-3 py-2 text-lg transition",
 						value === icon
-							? "border-brand-cyan/60 bg-brand-cyan/10"
-							: "border-glass-border bg-glass hover:border-glass-border-strong hover:bg-glass-strong"
+							? "border-primary-500/60 bg-primary-500/10"
+							: "border-neutral-700 bg-neutral-800/50 hover:border-neutral-600 hover:bg-neutral-800"
 					)}
 				>
 					{icon}
@@ -165,6 +168,18 @@ export default function AgentEditor({
 }) {
 	const [form, setForm] = useState(() => buildFormState(agent));
 	const [errors, setErrors] = useState({});
+	const [activeTab, setActiveTab] = useState("config");
+	const [agentMemory] = useState(() => new AgentMemory());
+	const [agentNotes, setAgentNotes] = useState("");
+	const [currentAgentMemory, setCurrentAgentMemory] = useState(null);
+
+	useEffect(() => {
+		if (agent) {
+			const mem = agentMemory.getAgentMemory(agent.id);
+			setCurrentAgentMemory(mem);
+			setAgentNotes(mem.notes || "");
+		}
+	}, [agent, agentMemory]);
 
 	const isEditing = Boolean(agent);
 	const providerHint = useMemo(
@@ -216,48 +231,96 @@ export default function AgentEditor({
 		setErrors({});
 	};
 
+	const handleSaveNotes = () => {
+		if (agent) {
+			agentMemory.updateNotes(agent.id, agentNotes);
+		}
+	};
+
+	const handleClearMemory = () => {
+		if (agent && confirm("Are you sure you want to clear this agent's memory?")) {
+			agentMemory.clearAgentMemory(agent.id);
+			const mem = agentMemory.getAgentMemory(agent.id);
+			setCurrentAgentMemory(mem);
+			setAgentNotes(mem.notes || "");
+		}
+	};
+
 	return (
-		<Card variant="default" radius="panel" className="w-full overflow-hidden p-5 sm:p-6">
-			<div className="flex flex-col gap-4 border-b border-glass-border pb-4 sm:pb-5 lg:flex-row lg:items-center lg:justify-between">
-				<div className="min-w-0 flex-1">
-					<p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
-						Agent editor
-					</p>
-					<h2 className="mt-2 break-words text-lg font-semibold text-ink sm:text-xl">
-						{isEditing ? "Edit agent" : "Create a new agent"}
-					</h2>
-					<p className="mt-2 break-words text-sm leading-6 text-ink-muted">
-						Validate and save every field locally. Personality traits shape how the agent debates.
-					</p>
+		<Card variant="default" className="w-full overflow-hidden p-5 sm:p-6">
+			<CardHeader>
+				<div className="flex flex-col gap-4 border-b border-neutral-700 pb-4 sm:pb-5 lg:flex-row lg:items-center lg:justify-between">
+					<div className="min-w-0 flex-1">
+						<p className="text-xs font-semibold uppercase tracking-[0.28em] text-warning-400/70">
+							Agent editor
+						</p>
+						<CardTitle className="mt-2 break-words text-lg sm:text-xl">
+							{isEditing ? "Edit agent" : "Create a new agent"}
+						</CardTitle>
+						<p className="mt-2 break-words text-sm leading-6 text-neutral-400">
+							Validate and save every field locally. Personality traits shape how the agent debates.
+						</p>
+					</div>
+
+					<div className="flex flex-shrink-0 flex-wrap gap-2">
+						<Button variant="secondary" size="sm" onClick={onNew}>
+							<Plus className="h-3.5 w-3.5" />
+							<span className="hidden sm:inline">New</span>
+						</Button>
+						{agent ? (
+							<>
+								<Button variant="secondary" size="sm" onClick={() => onToggleEnabled(agent.id)}>
+									<Power className="h-3.5 w-3.5" />
+									<span className="hidden sm:inline">{agent.isEnabled ? "Disable" : "Enable"}</span>
+								</Button>
+								<Button variant="secondary" size="sm" onClick={() => onDuplicate(agent.id)}>
+									<Copy className="h-3.5 w-3.5" />
+									<span className="hidden sm:inline">Duplicate</span>
+								</Button>
+								<Button variant="error" size="sm" onClick={() => onDelete(agent.id)}>
+									<Trash2 className="h-3.5 w-3.5" />
+									<span className="hidden sm:inline">Delete</span>
+								</Button>
+							</>
+						) : null}
+					</div>
 				</div>
 
-				<div className="flex flex-shrink-0 flex-wrap gap-2">
-					<Button variant="secondary" size="sm" onClick={onNew}>
-						<Plus className="h-3.5 w-3.5" />
-						<span className="hidden sm:inline">New</span>
-					</Button>
-					{agent ? (
-						<>
-							<Button variant="secondary" size="sm" onClick={() => onToggleEnabled(agent.id)}>
-								<Power className="h-3.5 w-3.5" />
-								<span className="hidden sm:inline">{agent.isEnabled ? "Disable" : "Enable"}</span>
-							</Button>
-							<Button variant="secondary" size="sm" onClick={() => onDuplicate(agent.id)}>
-								<Copy className="h-3.5 w-3.5" />
-								<span className="hidden sm:inline">Duplicate</span>
-							</Button>
-							<Button variant="danger" size="sm" onClick={() => onDelete(agent.id)}>
-								<Trash2 className="h-3.5 w-3.5" />
-								<span className="hidden sm:inline">Delete</span>
-							</Button>
-						</>
-					) : null}
-				</div>
-			</div>
+				{isEditing && (
+					<div className="flex gap-2 border-b border-neutral-700 py-3 mt-4">
+						<button
+							type="button"
+							onClick={() => setActiveTab("config")}
+							className={cn(
+								"px-3 py-1.5 rounded-xl text-xs font-medium transition",
+								activeTab === "config"
+									? "bg-primary-500/10 text-primary-400"
+									: "text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800"
+							)}
+						>
+							Configuration
+						</button>
+						<button
+							type="button"
+							onClick={() => setActiveTab("memory")}
+							className={cn(
+								"px-3 py-1.5 rounded-xl text-xs font-medium transition",
+								activeTab === "memory"
+									? "bg-primary-500/10 text-primary-400"
+									: "text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800"
+							)}
+						>
+							Memory & History
+						</button>
+					</div>
+				)}
+			</CardHeader>
 
+			<CardContent>
+			{activeTab === "config" && (
 			<form className="mt-5 w-full space-y-5 sm:mt-6 sm:space-y-6" onSubmit={handleSave}>
 				{Object.keys(errors).length ? (
-					<div className="flex items-start gap-2 rounded-card border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100 sm:items-center sm:p-4">
+					<div className="flex items-start gap-2 rounded-lg border border-error-500/20 bg-error-500/10 p-3 text-sm text-error-100 sm:items-center sm:p-4">
 						<AlertCircle className="h-4 w-4 shrink-0" />
 						<span className="break-words">Please fix the highlighted fields before saving.</span>
 					</div>
@@ -302,6 +365,24 @@ export default function AgentEditor({
 						onChange={(event) => updateField("goal", event.target.value)}
 						placeholder="What outcome should it deliver?"
 						className="w-full"
+					/>
+				</Field>
+
+				<Field label="Expertise" error={errors.expertise}>
+					<Textarea
+						rows={2}
+						value={form.expertise}
+						onChange={(event) => updateField("expertise", event.target.value)}
+						placeholder="What is this agent an expert in?"
+						className="w-full"
+					/>
+				</Field>
+
+				<Field label="Capabilities" hint="Up to 10 — press Enter to add">
+					<CoreValuesInput
+						values={form.capabilities}
+						onChange={(v) => updateField("capabilities", v)}
+						max={10}
 					/>
 				</Field>
 
@@ -402,24 +483,24 @@ export default function AgentEditor({
 					</Field>
 				</div>
 
-				<label className="flex w-full items-center gap-3 rounded-2xl border border-glass-border bg-black/15 px-4 py-3 text-sm text-ink-muted">
+				<label className="flex w-full items-center gap-3 rounded-2xl border border-neutral-700 bg-neutral-800/30 px-4 py-3 text-sm text-neutral-400">
 					<input
 						type="checkbox"
 						checked={form.isEnabled}
 						onChange={(event) => updateField("isEnabled", event.target.checked)}
-						className="h-4 w-4 shrink-0 rounded border-white/20 bg-navy-950 text-brand-cyan focus:ring-brand-cyan"
+						className="h-4 w-4 shrink-0 rounded border-white/20 bg-neutral-950 text-primary-500 focus:ring-primary-500"
 					/>
 					<span className="break-words">Enabled for routing</span>
 				</label>
 
 				{/* Personality */}
-				<div className="w-full space-y-5 rounded-panel border border-glass-border bg-black/15 p-4 sm:p-5">
+				<div className="w-full space-y-5 rounded-lg border border-neutral-700 bg-neutral-800/30 p-4 sm:p-5">
 					<div className="min-w-0">
-						<p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-amber-200/70">
+						<p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-warning-400/70">
 							<Sparkles className="h-3.5 w-3.5 shrink-0" />
 							<span className="break-words">Personality</span>
 						</p>
-						<p className="mt-1 break-words text-sm text-ink-subtle">
+						<p className="mt-1 break-words text-sm text-neutral-500">
 							These traits shape how this agent reasons, communicates, and responds under pressure.
 						</p>
 					</div>
@@ -492,6 +573,64 @@ export default function AgentEditor({
 					</Button>
 				</div>
 			</form>
+			)}
+
+			{activeTab === "memory" && isEditing && (
+				<div className="mt-5 space-y-5">
+					<Field label="Private notes" hint="Only visible to this agent">
+						<div className="flex gap-2">
+							<Textarea
+								rows={4}
+								value={agentNotes}
+								onChange={(e) => setAgentNotes(e.target.value)}
+								placeholder="Add notes only this agent can see..."
+								className="w-full"
+							/>
+						</div>
+						<div className="mt-2">
+							<Button variant="secondary" size="sm" onClick={handleSaveNotes}>
+								Save notes
+							</Button>
+						</div>
+					</Field>
+
+					<Card variant="default" className="p-4">
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex items-center gap-2">
+								<History className="h-4 w-4 text-neutral-500" />
+								<h3 className="text-sm font-medium text-white">Conversation history</h3>
+							</div>
+							<Button variant="error" size="sm" onClick={handleClearMemory}>
+								Clear memory
+							</Button>
+						</div>
+						{currentAgentMemory?.conversationHistory?.length === 0 ? (
+							<p className="text-sm text-neutral-500">No conversation history yet.</p>
+						) : (
+							<div className="max-h-96 overflow-y-auto space-y-3">
+								{currentAgentMemory?.conversationHistory?.map((msg, i) => (
+									<div key={i} className="flex gap-2">
+										<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800">
+											{msg.role === "user" ? (
+												<User className="h-4 w-4 text-neutral-400" />
+											) : (
+												<span className="text-sm">{agent.icon}</span>
+											)}
+										</div>
+										<div className="flex-1 rounded-2xl border border-neutral-700 bg-neutral-800/50 px-3 py-2">
+											<p className="text-xs text-neutral-600 mb-1">
+												{msg.role === "user" ? "You" : agent.name} • {new Date(msg.timestamp).toLocaleString()}
+											</p>
+											<p className="text-sm text-white">{msg.content}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</Card>
+				</div>
+			)}
+			</CardContent>
 		</Card>
 	);
 }

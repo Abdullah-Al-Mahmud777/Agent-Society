@@ -71,3 +71,15 @@ export function Card({
         </div>
     );
 }
+
+export function CardHeader({ children, className }) {
+    return <div className={cn("flex flex-col gap-2", className)}>{children}</div>;
+}
+
+export function CardTitle({ children, className }) {
+    return <h2 className={cn("text-lg font-semibold text-ink", className)}>{children}</h2>;
+}
+
+export function CardContent({ children, className }) {
+    return <div className={cn("mt-4", className)}>{children}</div>;
+}

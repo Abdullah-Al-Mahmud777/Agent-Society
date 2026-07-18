@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { Sparkles, Users, Wrench, Home, Settings } from "lucide-react";
+import { Sparkles, Users, Wrench, Home, Settings, Menu, X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
 const LINKS = [
@@ -20,22 +21,26 @@ function isActive(pathname, href) {
 
 export default function NavBar() {
     const pathname = usePathname();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
-        <div className="sticky top-0 z-40 px-4 pt-4">
-            <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 rounded-pill border border-glass-border bg-navy-900/70 px-4 py-2.5 shadow-glass backdrop-blur-glass-xl sm:px-6">
+        <div className="sticky top-0 z-50 px-4 pt-4">
+            <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-900/80 px-4 py-3 shadow-lg backdrop-blur-xl sm:px-6">
                 {/* Brand */}
                 <Link href="/" className="group flex items-center gap-2.5">
-                    <span className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-brand-cyan/30 to-brand-violet/30 ring-1 ring-glass-border-strong">
-                        <Sparkles className="h-4 w-4 text-cyan-200" />
+                    <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/20 to-primary-600/20 ring-1 ring-primary-500/30 transition-all group-hover:ring-primary-500/50">
+                        <Sparkles className="h-5 w-5 text-primary-400" />
                     </span>
-                    <span className="text-sm font-semibold tracking-tight text-ink">
-                        Agent<span className="text-ink-subtle">Society</span>
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="text-base font-semibold tracking-tight text-white">
+                            Agent<span className="text-neutral-400">Society</span>
+                        </span>
+                        <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Multi-Agent Platform</span>
+                    </div>
                 </Link>
 
-                {/* Links */}
-                <div className="flex items-center gap-1">
+                {/* Desktop Links */}
+                <div className="hidden md:flex items-center gap-1">
                     {LINKS.map(({ href, label, icon: Icon }) => {
                         const active = isActive(pathname, href);
                         return (
@@ -43,24 +48,65 @@ export default function NavBar() {
                                 key={href}
                                 href={href}
                                 className={cn(
-                                    "relative flex items-center gap-2 rounded-pill px-3 py-2 text-sm font-medium transition-colors sm:px-4",
-                                    active ? "text-ink" : "text-ink-subtle hover:text-ink"
+                                    "relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                                    active 
+                                        ? "bg-primary-500/10 text-primary-400" 
+                                        : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
                                 )}
                             >
+                                <Icon className="h-4 w-4" />
+                                <span>{label}</span>
                                 {active && (
-                                    <motion.span
-                                        layoutId="nav-active"
-                                        className="absolute inset-0 -z-10 rounded-pill border border-glass-border-strong bg-glass-strong"
+                                    <motion.div
+                                        layoutId="nav-indicator"
+                                        className="absolute inset-0 rounded-xl bg-primary-500/10 ring-1 ring-primary-500/20"
                                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                                     />
                                 )}
-                                <Icon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{label}</span>
                             </Link>
                         );
                     })}
                 </div>
+
+                {/* Mobile Menu Button */}
+                <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="md:hidden flex items-center justify-center p-2 rounded-lg hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white"
+                    aria-label="Toggle menu"
+                >
+                    {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
             </nav>
+
+            {/* Mobile Menu */}
+            {mobileMenuOpen && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="md:hidden mt-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-2 shadow-xl"
+                >
+                    {LINKS.map(({ href, label, icon: Icon }) => {
+                        const active = isActive(pathname, href);
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={cn(
+                                    "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
+                                    active 
+                                        ? "bg-primary-500/10 text-primary-400" 
+                                        : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                                )}
+                            >
+                                <Icon className="h-4 w-4" />
+                                <span>{label}</span>
+                            </Link>
+                        );
+                    })}
+                </motion.div>
+            )}
         </div>
     );
 }

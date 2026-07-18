@@ -19,26 +19,36 @@ import { QWEN_BASE_URL } from "@/providers/qwenProvider";
 export class LLMProviderFactory {
   constructor(userProviderConfig) {
     this.config = userProviderConfig;
-    this.apiKey = decryptApiKey(userProviderConfig.encryptedApiKey);
-    this.provider = userProviderConfig.providerName;
-    this.model = userProviderConfig.selectedModel;
+    this.apiKey = userProviderConfig?.apiKey
+      || (userProviderConfig?.encryptedApiKey ? decryptApiKey(userProviderConfig.encryptedApiKey) : "");
+    this.provider = userProviderConfig?.providerName || userProviderConfig?.provider;
+    this.model = userProviderConfig?.selectedModel || userProviderConfig?.model;
+    // #region debug-point C:factory-config
+    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"C",location:"src/lib/provider-factory.js:25",msg:"[DEBUG] Provider factory initialized",data:{configKeys:Object.keys(userProviderConfig||{}),providerName:userProviderConfig?.providerName??null,provider:userProviderConfig?.provider??null,selectedModel:userProviderConfig?.selectedModel??null,model:userProviderConfig?.model??null,hasEncryptedApiKey:Boolean(userProviderConfig?.encryptedApiKey),hasPlainApiKey:Boolean(userProviderConfig?.apiKey),resolvedProvider:this.provider??null,resolvedModel:this.model??null,resolvedApiKeyLength:this.apiKey?.length??0},ts:Date.now()})}).catch(()=>{});
+    // #endregion
   }
 
   /**
    * Get the appropriate LLM client instance
    */
   getClient() {
+    // #region debug-point D:factory-branch
+    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"D",location:"src/lib/provider-factory.js:35",msg:"[DEBUG] Provider factory selecting client",data:{resolvedProvider:this.provider??null,resolvedModel:this.model??null},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     switch (this.provider) {
       case PROVIDERS.QWEN:
+      case "qwen":
         return this.createQwenClient();
       
       case PROVIDERS.OPENAI:
+      case "openai":
         return this.createOpenAIClient();
       
       case PROVIDERS.ANTHROPIC:
+      case "anthropic":
         return this.createAnthropicClient();
 
-      case PROVIDERS.OPENROUTER:
+      case "openrouter":
         return this.createOpenRouterClient();
       
       default:

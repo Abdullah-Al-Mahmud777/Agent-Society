@@ -4,10 +4,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
 	agentSchema,
 	createAgentFromInput,
-	createStarterAgents,
 } from "../lib/agent-builder-schema";
-
-const starterAgents = createStarterAgents();
+import agentDatabase from "../lib/agent-database";
 
 const storageFallback = {
 	getItem: () => null,
@@ -73,8 +71,8 @@ function touch(agent) {
 export const useAgentBuilderStore = create(
 	persist(
 		(set, get) => ({
-			agents: starterAgents,
-			selectedAgentId: starterAgents[0]?.id ?? null,
+			agents: [],
+			selectedAgentId: null,
 
 			selectAgentId: (agentId) => {
 				set({ selectedAgentId: agentId });
@@ -88,6 +86,9 @@ export const useAgentBuilderStore = create(
 					selectedAgentId: createdAgent.id,
 				}));
 
+				// Also add to database
+				agentDatabase.add(createdAgent);
+
 				return createdAgent;
 			},
 
@@ -98,6 +99,9 @@ export const useAgentBuilderStore = create(
 					agents: state.agents.map((agent) => (agent.id === parsed.id ? parsed : agent)),
 					selectedAgentId: parsed.id,
 				}));
+
+				// Also update in database
+				agentDatabase.update(parsed.id, parsed);
 
 				return parsed;
 			},
@@ -120,6 +124,9 @@ export const useAgentBuilderStore = create(
 					selectedAgentId: duplicate.id,
 				}));
 
+				// Also add to database
+				agentDatabase.add(duplicate);
+
 				return duplicate;
 			},
 
@@ -130,10 +137,15 @@ export const useAgentBuilderStore = create(
 							return agent;
 						}
 
-						return touch({
+						const updatedAgent = touch({
 							...agent,
 							isEnabled: !agent.isEnabled,
 						});
+						
+						// Also update in database
+						agentDatabase.update(agentId, updatedAgent);
+						
+						return updatedAgent;
 					}),
 				}));
 			},
@@ -147,37 +159,40 @@ export const useAgentBuilderStore = create(
 						selectedAgentId: getNextSelection(nextAgents, deletedIndex),
 					};
 				});
+
+				// Also delete from database
+				agentDatabase.delete(agentId);
 			},
 
 			resetAgents: () => {
-				const freshAgents = createStarterAgents();
 				set({
-					agents: freshAgents,
-					selectedAgentId: freshAgents[0]?.id ?? null,
+					agents: [],
+					selectedAgentId: null,
 				});
 			},
 		}),
 		{
 			name: "agent-society-builder",
 			storage,
-			version: 4,
+			version: 5,
 			migrate: (persistedState) => {
 				if (!persistedState) {
 					return {
-						agents: starterAgents,
-						selectedAgentId: starterAgents[0]?.id ?? null,
+						agents: [],
+						selectedAgentId: null,
 					};
 				}
 
-				// Backfill personality fields for agents saved before v3
-				// And update old "qwen3.7-plus" model to "qwen/qwen3.7-plus"
-				const migratedAgents = normalizeAgents(persistedState.agents ?? starterAgents).map((agent) => ({
+				// Backfill personality fields, expertise, capabilities, and update model
+				const migratedAgents = normalizeAgents(persistedState.agents ?? []).map((agent) => ({
 					riskAppetite: 0.5,
 					communicationStyle: 0.5,
 					creativity: 0.5,
 					flexibility: 0.5,
 					coreValues: [],
 					speakingStyle: "formal",
+					expertise: "General knowledge",
+					capabilities: [],
 					...agent,
 					model: agent.model === "qwen3.7-plus" ? "qwen/qwen3.7-plus" : agent.model,
 				}));

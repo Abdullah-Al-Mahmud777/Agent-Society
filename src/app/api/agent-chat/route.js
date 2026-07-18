@@ -65,7 +65,7 @@ export async function POST(request) {
             console.log("⚠️  No providerConfig from client - attempting environment variable fallback");
             
             // Fallback to environment variables (for Vercel production)
-            const envProvider = process.env.DEFAULT_PROVIDER || "openrouter";
+            const envProvider = process.env.DEFAULT_PROVIDER || "qwen";
             const envModel = process.env.DEFAULT_MODEL || "qwen/qwen3.7-plus";
             
             // Check for API key - CRITICAL: No NEXT_PUBLIC_ prefix
