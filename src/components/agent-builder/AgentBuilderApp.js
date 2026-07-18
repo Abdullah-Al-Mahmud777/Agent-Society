@@ -8,26 +8,26 @@ import AgentEditor from "./AgentEditor";
 import AgentList from "./AgentList";
 import { PROVIDER_LABELS } from "../../lib/agent-builder-schema";
 import { useAgentBuilderStore } from "../../store/agent-builder-store";
-import { Card } from "@/components/ui/Card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 function StatCard({ icon: Icon, label, value, subtext }) {
 	return (
 		<Card variant="default" className="p-5">
-			<div className="flex items-center gap-2 text-ink-subtle">
+			<div className="flex items-center gap-2 text-neutral-500">
 				<Icon className="h-4 w-4" />
 				<div className="text-xs font-semibold uppercase tracking-[0.2em]">{label}</div>
 			</div>
-			<div className="mt-3 text-3xl font-semibold text-ink">{value}</div>
-			{subtext ? <p className="mt-2 text-sm leading-6 text-ink-muted">{subtext}</p> : null}
+			<div className="mt-3 text-3xl font-semibold text-white">{value}</div>
+			{subtext ? <p className="mt-2 text-sm leading-6 text-neutral-400">{subtext}</p> : null}
 		</Card>
 	);
 }
 
 function EmptyPreview() {
 	return (
-		<div className="rounded-panel border border-dashed border-glass-border bg-black/15 p-8 text-sm leading-7 text-ink-muted">
+		<div className="rounded-lg border border-dashed border-neutral-700 bg-neutral-800/30 p-8 text-sm leading-7 text-neutral-400">
 			Select an agent to edit it, or create a new one to start from a blank slate. Every change is
 			saved to local storage.
 		</div>
@@ -153,8 +153,8 @@ export default function AgentBuilderApp() {
 	const isLoading = !mounted;
 
 	return (
-		<main className="relative flex min-h-screen w-full max-w-full flex-col overflow-x-hidden bg-navy-900 text-ink">
-			<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.12),_transparent_28%),linear-gradient(180deg,_#0b1526_0%,_#07111f_100%)]" />
+		<main className="relative flex min-h-screen w-full max-w-full flex-col overflow-x-hidden bg-neutral-950 text-white">
+			<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.15),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.12),_transparent_28%),linear-gradient(180deg,_#09090b_0%,_#0a0a0b_100%)]" />
 			
 			{/* Container with full height */}
 			<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 overflow-x-hidden px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
@@ -165,18 +165,18 @@ export default function AgentBuilderApp() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4 }}
 				>
-					<Card variant="strong" radius="panel" className="p-5 sm:p-6 lg:p-8" glow="#22d3ee">
+					<Card variant="default" className="p-5 sm:p-6 lg:p-8">
 						<div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
 							{/* Title Section */}
 							<div className="max-w-3xl">
 								<div className="flex flex-wrap gap-2">
-									<Badge tone="cyan" uppercase>Agent Builder</Badge>
-									<Badge tone="neutral" uppercase>Local-first</Badge>
+									<Badge variant="primary" size="sm">Agent Builder</Badge>
+									<Badge variant="neutral" size="sm">Local-first</Badge>
 								</div>
-								<h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink sm:mt-4 sm:text-3xl md:text-4xl lg:mt-5 lg:text-5xl xl:text-6xl">
+								<h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:mt-4 sm:text-3xl md:text-4xl lg:mt-5 lg:text-5xl xl:text-6xl">
 									Design the individuals in your society.
 								</h1>
-								<p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted sm:mt-4 sm:text-base sm:leading-7">
+								<p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400 sm:mt-4 sm:text-base sm:leading-7">
 									Give each agent a personality, expertise, and voice. Everything persists in your
 									browser and feeds directly into the council debates.
 								</p>
@@ -193,12 +193,12 @@ export default function AgentBuilderApp() {
 									<Plus className="h-4 w-4" />
 									New agent
 								</Button>
-								<div className="grid gap-2 rounded-card border border-brand-cyan/20 bg-brand-cyan/10 p-3 text-xs text-cyan-50 sm:p-4 sm:text-sm">
-									<div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200/80 sm:text-xs">
+								<div className="grid gap-2 rounded-lg border border-primary-500/20 bg-primary-500/10 p-3 text-xs text-primary-50 sm:p-4 sm:text-sm">
+									<div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-primary-200/80 sm:text-xs">
 										Persisted state
 									</div>
 									<div>{agents.length} agents saved locally</div>
-									<div className="text-cyan-100/70">
+									<div className="text-primary-100/70">
 										{enabledAgents} enabled · {agents.length - enabledAgents} disabled
 									</div>
 								</div>
@@ -264,33 +264,36 @@ export default function AgentBuilderApp() {
 								/>
 
 								{/* Agent Snapshot - Hidden on mobile, visible on tablet+ */}
-								<Card variant="default" radius="panel" className="hidden p-5 sm:block sm:p-6">
-									<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-										<div>
-											<p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-200/70 sm:text-xs">
-												Current selection
-											</p>
-											<h2 className="mt-2 text-lg font-semibold text-ink sm:text-xl">Agent snapshot</h2>
-											<p className="mt-2 text-xs leading-5 text-ink-muted sm:text-sm sm:leading-6">
-												A compact preview of the selected agent's stored state.
-											</p>
+								<Card variant="default" className="hidden p-5 sm:block sm:p-6">
+									<CardHeader>
+										<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+											<div>
+												<p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-success-400/70 sm:text-xs">
+													Current selection
+												</p>
+												<CardTitle className="mt-2 text-lg sm:text-xl">Agent snapshot</CardTitle>
+												<p className="mt-2 text-xs leading-5 text-neutral-400 sm:text-sm sm:leading-6">
+													A compact preview of the selected agent's stored state.
+												</p>
+											</div>
+											<Button variant="secondary" size="sm" onClick={resetAgents} className="shrink-0">
+												<RotateCcw className="h-3.5 w-3.5" />
+												<span className="hidden sm:inline">Reset starters</span>
+												<span className="sm:hidden">Reset</span>
+											</Button>
 										</div>
-										<Button variant="secondary" size="sm" onClick={resetAgents} className="shrink-0">
-											<RotateCcw className="h-3.5 w-3.5" />
-											<span className="hidden sm:inline">Reset starters</span>
-											<span className="sm:hidden">Reset</span>
-										</Button>
-									</div>
-
-									<div className="mt-4 sm:mt-5">
-										{selectedAgent ? (
-											<pre className="overflow-x-auto rounded-card border border-glass-border bg-navy-950/90 p-4 text-[10px] leading-5 text-cyan-100 sm:p-5 sm:text-xs sm:leading-6">
+									</CardHeader>
+									<CardContent>
+										<div className="mt-4 sm:mt-5">
+											{selectedAgent ? (
+												<pre className="overflow-x-auto rounded-lg border border-neutral-700 bg-neutral-950/90 p-4 text-[10px] leading-5 text-primary-100 sm:p-5 sm:text-xs sm:leading-6">
 {JSON.stringify(selectedAgent, null, 2)}
-											</pre>
-										) : (
-											<EmptyPreview />
-										)}
-									</div>
+												</pre>
+											) : (
+												<EmptyPreview />
+											)}
+										</div>
+									</CardContent>
 								</Card>
 							</div>
 						</div>

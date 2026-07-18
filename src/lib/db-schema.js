@@ -12,14 +12,13 @@ export const PROVIDERS = {
   OPENAI: "openai",
   QWEN: "qwen",
   ANTHROPIC: "anthropic",
-  OPENROUTER: "openrouter",
 };
 
 // User Provider Configuration Schema
 export const userProviderSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().min(1), // In production, link to auth user
-  providerName: z.enum([PROVIDERS.OPENAI, PROVIDERS.QWEN, PROVIDERS.ANTHROPIC, PROVIDERS.OPENROUTER]),
+  providerName: z.enum([PROVIDERS.OPENAI, PROVIDERS.QWEN, PROVIDERS.ANTHROPIC]),
   encryptedApiKey: z.string().min(1), // Encrypted API key
   selectedModel: z.string().min(1),
   isActive: z.boolean().default(true),
@@ -37,7 +36,6 @@ export const DEFAULT_MODELS = {
   [PROVIDERS.OPENAI]: "gpt-4o-mini",
   [PROVIDERS.QWEN]: "qwen/qwen3.7-plus",
   [PROVIDERS.ANTHROPIC]: "claude-3-5-sonnet-20241022",
-  [PROVIDERS.OPENROUTER]: "qwen/qwen3.7-plus",
 };
 
 // Provider display information
@@ -50,11 +48,11 @@ export const PROVIDER_INFO = {
     docsUrl: "https://platform.openai.com/api-keys",
   },
   [PROVIDERS.QWEN]: {
-    name: "Alibaba Cloud Qwen (via OpenRouter)",
+    name: "Alibaba Cloud Qwen",
     icon: "🐉",
     models: ["qwen/qwen3.7-plus", "qwen/qwen3.5-plus", "qwen/qwen3-plus", "qwen/qwen-turbo"],
     keyFormat: "sk-or-v1-...",
-    docsUrl: "https://openrouter.ai/keys",
+    docsUrl: "https://bailian.console.aliyun.com/",
   },
   [PROVIDERS.ANTHROPIC]: {
     name: "Anthropic Claude",
@@ -62,13 +60,6 @@ export const PROVIDER_INFO = {
     models: ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
     keyFormat: "sk-ant-...",
     docsUrl: "https://console.anthropic.com/",
-  },
-  [PROVIDERS.OPENROUTER]: {
-    name: "OpenRouter",
-    icon: "🔄",
-    models: ["qwen/qwen3.7-plus", "openai/gpt-4o", "anthropic/claude-3-5-sonnet", "meta-llama/llama-3.1-405b-instruct"],
-    keyFormat: "sk-or-v1-...",
-    docsUrl: "https://openrouter.ai/keys",
   },
 };
 

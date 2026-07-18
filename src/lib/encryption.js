@@ -87,14 +87,10 @@ export function maskApiKey(apiKey) {
 export function validateApiKeyFormat(providerName, apiKey) {
   if (!apiKey) return false;
   
-  if (providerName === "qwen") {
-    // For Qwen, just check that it's a non-empty string of reasonable length
-    return apiKey.length >= 10;
-  }
-  
   const formats = {
     openai: /^sk-[a-zA-Z0-9]{20,}$/,
     anthropic: /^sk-ant-[a-zA-Z0-9-]{95,}$/,
+    qwen: /^sk-or-v1-[a-f0-9]+$/, // Qwen uses OpenRouter key format
     openrouter: /^sk-or-v1-[a-f0-9]+$/, // OpenRouter key format
   };
   
