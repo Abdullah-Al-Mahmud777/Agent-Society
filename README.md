@@ -1,4 +1,4 @@
-# Agent Society
+# Agent Society — Autonomous AI Workforce
 
 A multi-agent AI system that allows users to create, configure, and interact with specialized AI agents for different domains.
 
