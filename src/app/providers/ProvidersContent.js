@@ -25,57 +25,58 @@ import {
   setActiveProvider 
 } from "@/lib/provider-storage";
 
-// Scalable provider configuration - easily add new providers here
+// Scalable provider configuration — universal slot: Qwen key OR Gemini key works here
+// Easily add new providers by adding entry + handling in provider-factory.js
 const AGENT_PROVIDER_CONFIG = [
   {
     id: 'qwen',
     key: PROVIDERS.QWEN,
     name: 'Qwen',
-    icon: '🤖',
-    keyFormat: 'sk-xxxxxxxxxxxxxxxx',
+    icon: '🐉',
+    keyFormat: 'sk-or-v1-...',
     docsUrl: 'https://help.aliyun.com/zh/dashscope/developer-reference/activate-dashscope',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max'],
-    description: 'Alibaba Cloud AI model'
-  },
-  {
-    id: 'openai',
-    key: PROVIDERS.OPENAI,
-    name: 'OpenAI',
-    icon: '🧠',
-    keyFormat: 'sk-xxxxxxxxxxxxxxxx',
-    docsUrl: 'https://platform.openai.com/api-keys',
-    models: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-    description: 'OpenAI GPT models'
+    models: ['qwen/qwen3.7-plus', 'qwen/qwen3.5-plus', 'qwen/qwen3-plus', 'qwen/qwen-turbo'],
+    description: 'Alibaba Cloud AI model (via OpenRouter)'
   },
   {
     id: 'gemini',
     key: PROVIDERS.GEMINI,
     name: 'Gemini',
     icon: '✨',
-    keyFormat: 'AIzaxxxxxxxxxxxxxxxx',
-    docsUrl: 'https://makersuite.google.com/app/apikey',
-    models: ['gemini-pro', 'gemini-pro-vision'],
-    description: 'Google AI model'
+    keyFormat: 'AIza...',
+    docsUrl: 'https://aistudio.google.com/app/apikey',
+    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro'],
+    description: 'Google AI model — drop-in replacement for Qwen slot'
   },
   {
-    id: 'claude',
-    key: 'claude',
+    id: 'openai',
+    key: PROVIDERS.OPENAI,
+    name: 'OpenAI',
+    icon: '🤖',
+    keyFormat: 'sk-...',
+    docsUrl: 'https://platform.openai.com/api-keys',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    description: 'OpenAI GPT models'
+  },
+  {
+    id: 'anthropic',
+    key: PROVIDERS.ANTHROPIC,
     name: 'Claude',
-    icon: '🎭',
-    keyFormat: 'sk-ant-xxxxxxxxxxxxxxxx',
+    icon: '🧠',
+    keyFormat: 'sk-ant-...',
     docsUrl: 'https://console.anthropic.com/',
-    models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
+    models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
     description: 'Anthropic AI model'
   },
   {
-    id: 'mistral',
-    key: 'mistral',
-    name: 'Mistral',
-    icon: '🌊',
-    keyFormat: 'xxxxxxxxxxxxxxxx',
-    docsUrl: 'https://console.mistral.ai/',
-    models: ['mistral-large', 'mistral-medium', 'mistral-small'],
-    description: 'Mistral AI model'
+    id: 'openrouter',
+    key: PROVIDERS.OPENROUTER,
+    name: 'OpenRouter',
+    icon: '🔀',
+    keyFormat: 'sk-or-v1-...',
+    docsUrl: 'https://openrouter.ai/keys',
+    models: ['qwen/qwen3.7-plus', 'openai/gpt-4o-mini'],
+    description: 'OpenRouter unified gateway'
   }
 ];
 
@@ -127,10 +128,15 @@ export default function ProvidersContent() {
 
     try {
       const selectedConfig = AGENT_PROVIDER_CONFIG.find(p => p.key === formData.providerName);
-      
-      // Validate API key format
-      if (!validateApiKeyFormat(formData.providerName, formData.apiKey)) {
-        throw new Error(`Invalid API key format for ${selectedConfig?.name || formData.providerName}`);
+      const trimmedKey = (formData.apiKey || "").trim();
+
+      // Validate API key format (trim whitespace first — copy-paste often adds spaces/newlines)
+      if (!validateApiKeyFormat(formData.providerName, trimmedKey)) {
+        throw new Error(
+          `Invalid API key format for ${selectedConfig?.name || formData.providerName}. ` +
+          `Expected format: ${selectedConfig?.keyFormat || "see docs"}. ` +
+          `Make sure you copied the full key without extra spaces.`
+        );
       }
 
       const response = await fetch("/api/providers", {
@@ -139,6 +145,7 @@ export default function ProvidersContent() {
         body: JSON.stringify({
           action: "test",
           ...formData,
+          apiKey: trimmedKey,
           userId: "default-user",
         }),
       });
@@ -181,7 +188,7 @@ export default function ProvidersContent() {
       const providerData = {
         userId: "default-user",
         providerName: formData.providerName,
-        encryptedApiKey: encryptApiKey(formData.apiKey),
+        encryptedApiKey: encryptApiKey((formData.apiKey || "").trim()),
         selectedModel: formData.selectedModel,
         isActive: true,
         metadata: {

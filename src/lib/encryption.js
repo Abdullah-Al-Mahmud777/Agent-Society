@@ -86,16 +86,20 @@ export function maskApiKey(apiKey) {
  */
 export function validateApiKeyFormat(providerName, apiKey) {
   if (!apiKey) return false;
+
+  const key = apiKey.trim();
+  if (key.length < 10) return false;
   
   const formats = {
-    openai: /^sk-[a-zA-Z0-9]{20,}$/,
-    anthropic: /^sk-ant-[a-zA-Z0-9-]{95,}$/,
-    qwen: /^sk-or-v1-[a-f0-9]+$/, // Qwen uses OpenRouter key format
-    openrouter: /^sk-or-v1-[a-f0-9]+$/, // OpenRouter key format
+    openai: /^(sk-proj-|sk-)[a-zA-Z0-9-_]{10,}$/,
+    anthropic: /^sk-ant-[a-zA-Z0-9-_]{10,}$/,
+    qwen: /^sk-or-v1-[A-Za-z0-9]+$/, // Qwen uses OpenRouter key format
+    openrouter: /^sk-or-v1-[A-Za-z0-9]+$/, // OpenRouter key format
+    gemini: /^AIza[0-9A-Za-z-_]{10,}$/, // Google AI Studio key format (AIza + 35 chars, min 10 for leniency)
   };
   
   const regex = formats[providerName];
-  if (!regex) return true; // Unknown provider, allow any format
+  if (!regex) return key.length >= 10; // Unknown provider, allow any reasonable key
   
-  return regex.test(apiKey);
+  return regex.test(key);
 }

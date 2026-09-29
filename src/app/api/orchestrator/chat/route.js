@@ -40,7 +40,7 @@ export async function POST(request) {
       // #endregion
     }
     if (!finalApiKey) {
-      finalApiKey = process.env.OPENROUTER_API_KEY || process.env.QWEN_API_KEY;
+      finalApiKey = process.env.OPENROUTER_API_KEY || process.env.QWEN_API_KEY || process.env.GEMINI_API_KEY;
     }
     if (!finalApiKey) {
       return NextResponse.json({ error: 'API key is required' }, { status: 400 });

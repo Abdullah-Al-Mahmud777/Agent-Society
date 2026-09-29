@@ -69,19 +69,23 @@ export async function POST(request) {
             const envModel = process.env.DEFAULT_MODEL || "qwen/qwen3.7-plus";
             
             // Check for API key - CRITICAL: No NEXT_PUBLIC_ prefix
-            const envApiKey = HARDCODED_QWEN_API_KEY || 
-                             process.env.OPENROUTER_API_KEY ||
-                             process.env.QWEN_API_KEY || 
-                             process.env.OPENAI_API_KEY || 
-                             process.env.ANTHROPIC_API_KEY;
+            // Universal slot: Qwen (OpenRouter) OR Gemini both work here
+            const envApiKey = HARDCODED_QWEN_API_KEY !== "YOUR_OPENROUTER_API_KEY_HERE" ? HARDCODED_QWEN_API_KEY :
+                              process.env.OPENROUTER_API_KEY ||
+                              process.env.QWEN_API_KEY ||
+                              process.env.GEMINI_API_KEY ||
+                              process.env.OPENAI_API_KEY || 
+                              process.env.ANTHROPIC_API_KEY;
             
             console.log("Environment fallback check:");
             console.log("- Provider:", envProvider);
             console.log("- Model:", envModel);
             console.log("- API Key found?:", !!envApiKey);
-            console.log("- API Key source:", process.env.QWEN_API_KEY ? "QWEN_API_KEY" : 
-                                           process.env.OPENAI_API_KEY ? "OPENAI_API_KEY" :
-                                           process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : "NONE");
+            console.log("- API Key source:", process.env.OPENROUTER_API_KEY ? "OPENROUTER_API_KEY" :
+                                           process.env.QWEN_API_KEY ? "QWEN_API_KEY" :
+                                           process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" :
+                                            process.env.OPENAI_API_KEY ? "OPENAI_API_KEY" :
+                                            process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : "NONE");
             
             if (envApiKey) {
                 console.log("✅ Using environment variable fallback");

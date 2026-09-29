@@ -48,11 +48,18 @@ export async function POST(request) {
     const { action, providerName, apiKey, selectedModel, userId } = body;
     
     if (action === "test") {
+      const cleanKey = (apiKey || "").trim();
+      if (!cleanKey) {
+        return NextResponse.json(
+          { success: false, message: "API key is required" },
+          { status: 400 }
+        );
+      }
       // Test connection without saving
       console.log("🟢 /api/providers POST test action called!");
       console.log("  providerName:", providerName);
-      console.log("  apiKey (length):", apiKey.length);
-      console.log("  apiKey prefix:", apiKey.substring(0, Math.min(10, apiKey.length)));
+      console.log("  apiKey (length):", cleanKey.length);
+      console.log("  apiKey prefix:", cleanKey.substring(0, Math.min(10, cleanKey.length)));
       
       const testConfig = {
         userId: userId || "test-user",
@@ -63,7 +70,7 @@ export async function POST(request) {
       };
       
       console.log("  Using plaintext API key directly for test!");
-      const provider = createTestProvider(testConfig, apiKey);
+      const provider = createTestProvider(testConfig, cleanKey);
       console.log("  provider created! Calling testConnection...");
       const result = await provider.testConnection();
       
