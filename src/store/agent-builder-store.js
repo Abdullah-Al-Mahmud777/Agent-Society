@@ -1,25 +1,54 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
 	agentSchema,
 	createAgentFromInput,
 } from "../lib/agent-builder-schema";
-import agentDatabase from "../lib/agent-database";
 
-const storageFallback = {
-	getItem: () => null,
-	setItem: () => undefined,
-	removeItem: () => undefined,
-};
+async function requestJson(url, options = {}) {
+	const response = await fetch(url, {
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...(options.headers || {}),
+		},
+	});
 
-const storage = createJSONStorage(() => {
-	if (typeof globalThis === 'undefined' || typeof globalThis.localStorage === 'undefined') {
-		return storageFallback;
+	let data = null;
+	try {
+		data = await response.json();
+	} catch {
+		data = null;
 	}
 
-	return window.localStorage;
-});
+	if (response.status === 401) {
+		if (typeof window !== "undefined") {
+			window.location.assign("/login");
+		}
+		throw new Error("Your session expired. Please sign in again.");
+	}
+
+	if (!response.ok || data?.success === false) {
+		throw new Error(data?.error || "The agent could not be saved.");
+	}
+
+	return data;
+}
+
+function normalizeAgents(agents) {
+	const seenIds = new Set();
+
+	return (Array.isArray(agents) ? agents : []).map((agent) => {
+		if (!seenIds.has(agent.id)) {
+			seenIds.add(agent.id);
+			return agent;
+		}
+
+		const nextId = createUniqueAgentId();
+		seenIds.add(nextId);
+		return { ...agent, id: nextId };
+	});
+}
 
 function createUniqueAgentId() {
 	if (globalThis.crypto?.randomUUID) {
@@ -29,36 +58,22 @@ function createUniqueAgentId() {
 	return `agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function normalizeAgents(agents) {
-	const seenIds = new Set();
-
-	return (agents ?? []).map((agent) => {
-		if (!seenIds.has(agent.id)) {
-			seenIds.add(agent.id);
-			return agent;
-		}
-
-		let nextId = createUniqueAgentId();
-		while (seenIds.has(nextId)) {
-			nextId = createUniqueAgentId();
-		}
-
-		seenIds.add(nextId);
-
-		return {
-			...agent,
-			id: nextId,
-			updatedAt: new Date().toISOString(),
-		};
-	});
+function nextSelection(agents, deletedIndex) {
+	if (!agents.length) return null;
+	return agents[Math.min(Math.max(deletedIndex, 0), agents.length - 1)].id;
 }
 
-function getNextSelection(agents, deletedIndex) {
-	if (!agents.length) {
-		return null;
+function copyName(sourceName, agents) {
+	const base = `${sourceName} Copy`.slice(0, 80);
+	if (!agents.some((agent) => agent.name === base)) return base;
+
+	for (let index = 2; index < 100; index += 1) {
+		const suffix = ` ${index}`;
+		const candidate = `${base.slice(0, 80 - suffix.length)}${suffix}`;
+		if (!agents.some((agent) => agent.name === candidate)) return candidate;
 	}
 
-	return agents[Math.min(deletedIndex, agents.length - 1)].id;
+	return `${base.slice(0, 72)} Copy`;
 }
 
 function touch(agent) {
@@ -68,163 +83,171 @@ function touch(agent) {
 	};
 }
 
-export const useAgentBuilderStore = create(
-	persist(
-		(set, get) => ({
-			agents: [],
-			selectedAgentId: null,
+function replaceAgent(agents, updated) {
+	return agents.map((agent) => (agent.id === updated.id ? updated : agent));
+}
 
-			selectAgentId: (agentId) => {
-				set({ selectedAgentId: agentId });
-			},
+async function persistAgent(agent) {
+	const data = await requestJson("/api/db/agents", {
+		method: "POST",
+		body: JSON.stringify({ agent }),
+	});
+	return data?.agent || agent;
+}
 
-			createAgent: (input) => {
-				const createdAgent = createAgentFromInput(input);
+export const useAgentBuilderStore = create((set, get) => ({
+	agents: [],
+	selectedAgentId: null,
+	hydrated: false,
+	hydrating: false,
+	hydrateError: null,
 
-				set((state) => ({
-					agents: [...state.agents, createdAgent],
-					selectedAgentId: createdAgent.id,
-				}));
+	selectAgentId: (agentId) => {
+		set({ selectedAgentId: agentId });
+	},
 
-				// Also add to database
-				agentDatabase.add(createdAgent);
+	hydrateAgents: async () => {
+		if (get().hydrating) return;
 
-				return createdAgent;
-			},
+		set({ hydrating: true, hydrateError: null });
 
-			updateAgent: (input) => {
-				const parsed = agentSchema.parse(touch(input));
+		try {
+			const data = await requestJson("/api/db/agents", { cache: "no-store" });
+			const nextAgents = normalizeAgents(data.agents);
+			const currentSelected = get().selectedAgentId;
+			const selectedAgentId = nextAgents.some((agent) => agent.id === currentSelected)
+				? currentSelected
+				: nextAgents[0]?.id ?? null;
 
-				set((state) => ({
-					agents: state.agents.map((agent) => (agent.id === parsed.id ? parsed : agent)),
-					selectedAgentId: parsed.id,
-				}));
+			set({
+				agents: nextAgents,
+				selectedAgentId,
+				hydrated: true,
+				hydrating: false,
+				hydrateError: null,
+			});
+		} catch (error) {
+			set({
+				hydrated: true,
+				hydrating: false,
+				hydrateError: error.message || "Agents could not be loaded.",
+			});
+		}
+	},
 
-				// Also update in database
-				agentDatabase.update(parsed.id, parsed);
+	createAgent: async (input) => {
+		const createdAgent = createAgentFromInput(input);
+		const previousSelection = get().selectedAgentId;
 
-				return parsed;
-			},
+		set((state) => ({
+			agents: [...state.agents, createdAgent],
+			selectedAgentId: createdAgent.id,
+		}));
 
-			duplicateAgent: (agentId) => {
-				const source = get().agents.find((agent) => agent.id === agentId);
-				if (!source) {
-					return null;
-				}
+		try {
+			const savedAgent = await persistAgent(createdAgent);
+			set((state) => ({
+				agents: replaceAgent(state.agents, savedAgent),
+				selectedAgentId: savedAgent.id,
+			}));
+			return savedAgent;
+		} catch (error) {
+			set((state) => ({
+				agents: state.agents.filter((agent) => agent.id !== createdAgent.id),
+				selectedAgentId: previousSelection,
+			}));
+			throw error;
+		}
+	},
 
-				const { id, createdAt, updatedAt, ...copySource } = source;
+	updateAgent: async (input) => {
+		const parsed = agentSchema.parse(touch(input));
+		const previous = get().agents.find((agent) => agent.id === parsed.id) || null;
 
-				const duplicate = createAgentFromInput({
-					...copySource,
-					name: `${source.name} Copy`,
-				});
+		set((state) => ({
+			agents: replaceAgent(state.agents, parsed),
+			selectedAgentId: parsed.id,
+		}));
 
-				set((state) => ({
-					agents: [...state.agents, duplicate],
-					selectedAgentId: duplicate.id,
-				}));
+		try {
+			const savedAgent = await persistAgent(parsed);
+			set((state) => ({
+				agents: replaceAgent(state.agents, savedAgent),
+				selectedAgentId: savedAgent.id,
+			}));
+			return savedAgent;
+		} catch (error) {
+			set((state) => ({
+				agents: previous
+					? replaceAgent(state.agents, previous)
+					: state.agents,
+				selectedAgentId: previous ? previous.id : state.selectedAgentId,
+			}));
+			throw error;
+		}
+	},
 
-				// Also add to database
-				agentDatabase.add(duplicate);
+	duplicateAgent: async (agentId) => {
+		const state = get();
+		const source = state.agents.find((agent) => agent.id === agentId);
+		if (!source) return null;
 
-				return duplicate;
-			},
+		const { id, createdAt, updatedAt, ...copySource } = source;
+		const duplicate = createAgentFromInput({
+			...copySource,
+			name: copyName(source.name, state.agents),
+		});
 
-			toggleAgentEnabled: (agentId) => {
-				set((state) => ({
-					agents: state.agents.map((agent) => {
-						if (agent.id !== agentId) {
-							return agent;
-						}
+		set((current) => ({
+			agents: [...current.agents, duplicate],
+			selectedAgentId: duplicate.id,
+		}));
 
-						const updatedAgent = touch({
-							...agent,
-							isEnabled: !agent.isEnabled,
-						});
-						
-						// Also update in database
-						agentDatabase.update(agentId, updatedAgent);
-						
-						return updatedAgent;
-					}),
-				}));
-			},
+		try {
+			const savedAgent = await persistAgent(duplicate);
+			set((current) => ({
+				agents: replaceAgent(current.agents, savedAgent),
+				selectedAgentId: savedAgent.id,
+			}));
+			return savedAgent;
+		} catch (error) {
+			set((current) => ({
+				agents: current.agents.filter((agent) => agent.id !== duplicate.id),
+				selectedAgentId: source.id,
+			}));
+			throw error;
+		}
+	},
 
-			deleteAgent: (agentId) => {
-				set((state) => {
-					const deletedIndex = state.agents.findIndex((agent) => agent.id === agentId);
-					const nextAgents = state.agents.filter((agent) => agent.id !== agentId);
-					return {
-						agents: nextAgents,
-						selectedAgentId: getNextSelection(nextAgents, deletedIndex),
-					};
-				});
+	toggleAgentEnabled: async (agentId) => {
+		const agent = get().agents.find((item) => item.id === agentId);
+		if (!agent) return null;
+		return get().updateAgent({ ...agent, isEnabled: !agent.isEnabled });
+	},
 
-				// Also delete from database
-				agentDatabase.delete(agentId);
-			},
+	deleteAgent: async (agentId) => {
+		const state = get();
+		const deletedIndex = state.agents.findIndex((agent) => agent.id === agentId);
+		if (deletedIndex === -1) return false;
 
-			resetAgents: () => {
-				set({
-					agents: [],
-					selectedAgentId: null,
-				});
-			},
-		}),
-		{
-			name: "agent-society-builder",
-			storage,
-			version: 5,
-			migrate: (persistedState) => {
-				if (!persistedState) {
-					return {
-						agents: [],
-						selectedAgentId: null,
-					};
-				}
+		const nextAgents = state.agents.filter((agent) => agent.id !== agentId);
 
-				// Backfill personality fields, expertise, capabilities, and update model
-				const migratedAgents = normalizeAgents(persistedState.agents ?? []).map((agent) => ({
-					riskAppetite: 0.5,
-					communicationStyle: 0.5,
-					creativity: 0.5,
-					flexibility: 0.5,
-					coreValues: [],
-					speakingStyle: "formal",
-					expertise: "General knowledge",
-					capabilities: [],
-					...agent,
-					model: agent.model === "qwen3.7-plus" ? "qwen/qwen3.7-plus" : agent.model,
-				}));
+		set({
+			agents: nextAgents,
+			selectedAgentId: nextSelection(nextAgents, deletedIndex),
+		});
 
-				const selectedAgentId = migratedAgents.some((agent) => agent.id === persistedState.selectedAgentId)
-					? persistedState.selectedAgentId
-					: migratedAgents[0]?.id ?? null;
-
-				return {
-					...persistedState,
-					agents: migratedAgents,
-					selectedAgentId,
-				};
-			},
-			merge: (persistedState, currentState) => {
-				const mergedAgents = normalizeAgents(persistedState?.agents ?? currentState.agents);
-				const selectedAgentId = mergedAgents.some((agent) => agent.id === persistedState?.selectedAgentId)
-					? persistedState.selectedAgentId
-					: mergedAgents[0]?.id ?? null;
-
-				return {
-					...currentState,
-					...persistedState,
-					agents: mergedAgents,
-					selectedAgentId,
-				};
-			},
-			partialize: (state) => ({
+		try {
+			await requestJson(`/api/db/agents?id=${encodeURIComponent(agentId)}`, {
+				method: "DELETE",
+			});
+			return true;
+		} catch (error) {
+			set({
 				agents: state.agents,
 				selectedAgentId: state.selectedAgentId,
-			}),
-			skipHydration: true,
-		},
-	),
-);
+			});
+			throw error;
+		}
+	},
+}));

@@ -1,11 +1,19 @@
-import { z } from "zod";
+import {
+	addIssue,
+	numberInRange,
+	parseWithSchema,
+	requiredString,
+	validationFailure,
+	validationSuccess,
+} from "./validation.js";
 
-export const AI_PROVIDERS = ["openai", "qwen", "anthropic"];
+export const AI_PROVIDERS = ["openai", "qwen", "anthropic", "gemini", "openrouter"];
 
 export const PROVIDER_LABELS = {
 	openai: "OpenAI",
 	qwen: "Alibaba Cloud Qwen",
 	anthropic: "Anthropic Claude",
+	gemini: "Google Gemini",
 	openrouter: "OpenRouter",
 };
 
@@ -13,6 +21,7 @@ export const PROVIDER_DEFAULT_MODELS = {
 	openai: "gpt-4o-mini",
 	qwen: "qwen/qwen3.7-plus",
 	anthropic: "claude-3-5-sonnet-20241022",
+	gemini: "gemini-2.5-flash",
 	openrouter: "qwen/qwen3.7-plus",
 };
 
@@ -25,63 +34,144 @@ export const DEFAULT_AGENT_COLOR = "#22c55e";
 export const DEFAULT_SYSTEM_PROMPT =
 	"You are a reliable AI agent. Follow the assigned role, pursue the stated goal, and respond with clear, actionable output.";
 
-const colorRegex = /^#[0-9a-fA-F]{6}$/;
+const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+const AI_PROVIDER_SET = new Set(AI_PROVIDERS);
+const SPEAKING_STYLE_SET = new Set(SPEAKING_STYLES);
 
 function createId() {
 	if (globalThis.crypto?.randomUUID) {
 		return globalThis.crypto.randomUUID();
 	}
 
-	// Use stable UUID generation without Date.now() or Math.random() during SSR
-	try {
-		if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
-			return globalThis.crypto.randomUUID();
+	const bytes = new Uint8Array(16);
+	if (globalThis.crypto?.getRandomValues) {
+		globalThis.crypto.getRandomValues(bytes);
+	} else {
+		for (let index = 0; index < bytes.length; index += 1) {
+			bytes[index] = Math.floor(Math.random() * 256);
 		}
-		const array = new Uint8Array(16);
-		if (globalThis.crypto?.getRandomValues) {
-			globalThis.crypto.getRandomValues(array);
-		} else {
-			for (let i = 0; i < 16; i++) {
-				array[i] = Math.floor(Math.random() * 256);
-			}
-		}
-		return 'agent-' + Array.from(array).map((b) => b.toString(16).padStart(2, '0')).join('');
-	} catch {
-		// Fallback for edge cases
-		return 'agent-' + Math.random().toString(36).substr(2, 9);
 	}
+
+	return `agent-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export const agentInputSchema = z.object({
-	name: z.string().trim().min(1, "Name is required").max(80, "Name must be 80 characters or less"),
-	description: z.string().trim().min(1, "Description is required").max(240, "Description must be 240 characters or less"),
-	role: z.string().trim().min(1, "Role is required").max(80, "Role must be 80 characters or less"),
-	goal: z.string().trim().min(1, "Goal is required").max(240, "Goal must be 240 characters or less"),
-	systemPrompt: z.string().trim().min(1, "System prompt is required").max(4000, "System prompt must be 4000 characters or less"),
-	aiProvider: z.enum(["openai", "qwen", "anthropic"]),
-	model: z.string().trim().min(1, "Model is required").max(120, "Model must be 120 characters or less"),
-	temperature: z.number().min(0, "Temperature must be at least 0").max(2, "Temperature must be 2 or lower"),
-	maxTokens: z.number().int("Max tokens must be a whole number").min(1, "Max tokens must be at least 1").max(32768, "Max tokens must be 32768 or lower"),
-	icon: z.string().trim().min(1, "Icon is required").max(8, "Icon must be 8 characters or less"),
-	color: z.string().regex(colorRegex, "Color must be a hex value like #22c55e"),
-	isEnabled: z.boolean(),
-	// Personality traits (0 = left extreme, 1 = right extreme)
-	riskAppetite: z.number().min(0).max(1),
-	communicationStyle: z.number().min(0).max(1),
-	creativity: z.number().min(0).max(1),
-	flexibility: z.number().min(0).max(1),
-	coreValues: z.array(z.string().trim().min(1).max(60)).max(4),
-	speakingStyle: z.enum(SPEAKING_STYLES),
-	// New fields from spec
-	expertise: z.string().trim().min(1, "Expertise is required").max(500, "Expertise must be 500 characters or less").default("General knowledge"),
-	capabilities: z.array(z.string().trim().min(1).max(100)).max(10).default([]),
-});
+function validateStringArray(issues, value, path, { maxItems, maxLength, required = false }) {
+	if (value === undefined && !required) return [];
+	if (!Array.isArray(value)) {
+		addIssue(issues, [path], `${path} must be a list`);
+		return [];
+	}
+	if (value.length > maxItems) {
+		addIssue(issues, [path], `${path} can have at most ${maxItems} items`);
+	}
+	const values = [];
+	for (const item of value) {
+		if (typeof item !== "string" || !item.trim()) {
+			addIssue(issues, [path], `${path} items must be non-empty text`);
+			continue;
+		}
+		const next = item.trim();
+		if (next.length > maxLength) {
+			addIssue(issues, [path], `${path} items must be ${maxLength} characters or less`);
+			continue;
+		}
+		values.push(next);
+	}
+	return values;
+}
 
-export const agentSchema = agentInputSchema.extend({
-	id: z.string().min(1),
-	createdAt: z.string().min(1),
-	updatedAt: z.string().min(1),
-});
+function validateAgent(source, { requireMetadata = false } = {}) {
+	const input = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+	const issues = [];
+	const data = {};
+
+	if (requireMetadata) {
+		data.id = requiredString(issues, input.id, "id", "Agent id", 120);
+		data.createdAt = requiredString(issues, input.createdAt, "createdAt", "Created date");
+		data.updatedAt = requiredString(issues, input.updatedAt, "updatedAt", "Updated date");
+	}
+
+	data.name = requiredString(issues, input.name, "name", "Name", 80);
+	data.description = requiredString(issues, input.description, "description", "Description", 240);
+	data.role = requiredString(issues, input.role, "role", "Role", 80);
+	data.goal = requiredString(issues, input.goal, "goal", "Goal", 240);
+	data.systemPrompt = requiredString(issues, input.systemPrompt, "systemPrompt", "System prompt", 4000);
+
+	if (!AI_PROVIDER_SET.has(input.aiProvider)) {
+		addIssue(issues, ["aiProvider"], "Choose a supported AI provider");
+	} else {
+		data.aiProvider = input.aiProvider;
+	}
+
+	data.model = requiredString(issues, input.model, "model", "Model", 120);
+	data.temperature = numberInRange(issues, input.temperature, "temperature", "Temperature", 0, 2);
+	data.maxTokens = numberInRange(issues, input.maxTokens, "maxTokens", "Max tokens", 1, 32768, {
+		integer: true,
+	});
+	data.icon = requiredString(issues, input.icon, "icon", "Icon", 8);
+
+	if (typeof input.color !== "string" || !COLOR_PATTERN.test(input.color)) {
+		addIssue(issues, ["color"], "Color must be a hex value like #22c55e");
+	} else {
+		data.color = input.color;
+	}
+
+	if (typeof input.isEnabled !== "boolean") {
+		addIssue(issues, ["isEnabled"], "Enabled must be true or false");
+	} else {
+		data.isEnabled = input.isEnabled;
+	}
+
+	data.riskAppetite = numberInRange(issues, input.riskAppetite, "riskAppetite", "Risk appetite", 0, 1);
+	data.communicationStyle = numberInRange(
+		issues,
+		input.communicationStyle,
+		"communicationStyle",
+		"Communication style",
+		0,
+		1
+	);
+	data.creativity = numberInRange(issues, input.creativity, "creativity", "Creativity", 0, 1);
+	data.flexibility = numberInRange(issues, input.flexibility, "flexibility", "Flexibility", 0, 1);
+	data.coreValues = validateStringArray(issues, input.coreValues, "coreValues", {
+		maxItems: 4,
+		maxLength: 60,
+		required: true,
+	});
+
+	if (!SPEAKING_STYLE_SET.has(input.speakingStyle)) {
+		addIssue(issues, ["speakingStyle"], "Choose a supported speaking style");
+	} else {
+		data.speakingStyle = input.speakingStyle;
+	}
+
+	const expertise = input.expertise === undefined ? "General knowledge" : input.expertise;
+	data.expertise = requiredString(issues, expertise, "expertise", "Expertise", 500);
+	data.capabilities = validateStringArray(issues, input.capabilities, "capabilities", {
+		maxItems: 10,
+		maxLength: 100,
+	});
+
+	return issues.length ? validationFailure(issues) : validationSuccess(data);
+}
+
+export const agentInputSchema = {
+	safeParse(input) {
+		return validateAgent(input);
+	},
+	parse(input) {
+		return parseWithSchema(this, input);
+	},
+};
+
+export const agentSchema = {
+	safeParse(input) {
+		return validateAgent(input, { requireMetadata: true });
+	},
+	parse(input) {
+		return parseWithSchema(this, input);
+	},
+};
 
 export function createAgentDefaults(overrides = {}) {
 	return {
@@ -103,7 +193,6 @@ export function createAgentDefaults(overrides = {}) {
 		flexibility: 0.5,
 		coreValues: [],
 		speakingStyle: "formal",
-		// New fields
 		expertise: "General knowledge",
 		capabilities: [],
 		...overrides,

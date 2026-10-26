@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRequestUser, unauthorizedResponse } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,8 @@ export const runtime = "nodejs";
  */
 export async function POST(request) {
 	try {
+		const user = await getRequestUser(request);
+		if (!user) return unauthorizedResponse();
 		const { agents, customContent, exportType = "all" } = await request.json();
 
 		if (!agents || !Array.isArray(agents)) {

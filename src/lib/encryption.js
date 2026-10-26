@@ -1,105 +1,115 @@
-/**
- * Encryption/Decryption Utility for API Keys
- * 
- * Uses Web Crypto API for browser-side encryption
- * For production: Use server-side encryption with proper key management (AWS KMS, HashiCorp Vault)
- */
+import "server-only";
 
-const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || "default-encryption-key-change-in-production";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 
-/**
- * Simple encryption using base64 encoding
- * WARNING: This is NOT secure for production. Use proper encryption in production.
- * 
- * For production, implement:
- * - Server-side encryption with crypto.createCipheriv()
- * - Store encryption keys in environment variables or key management service
- * - Use AES-256-GCM algorithm
- */
+export { validateApiKeyFormat } from "./api-key-format";
+
+const ALGORITHM = "aes-256-gcm";
+const VERSION = "v1";
+const LEGACY_KEY =
+  process.env.NEXT_PUBLIC_ENCRYPTION_KEY ||
+  "default-encryption-key-change-in-production";
+
+let warnedAboutFallback = false;
+
+function getSecret() {
+  const secret =
+    process.env.API_KEY_ENCRYPTION_SECRET ||
+    process.env.NEXT_PUBLIC_ENCRYPTION_KEY;
+
+  if (secret) return secret;
+
+  if (!warnedAboutFallback) {
+    warnedAboutFallback = true;
+    console.warn(
+      "[encryption] API_KEY_ENCRYPTION_SECRET is not set. Using a development fallback."
+    );
+  }
+
+  return LEGACY_KEY;
+}
+
+function deriveKey(secret) {
+  return createHash("sha256").update(secret).digest();
+}
+
+function decode(value) {
+  return Buffer.from(value, "base64url");
+}
+
 export function encryptApiKey(apiKey) {
   if (!apiKey) return "";
-  
+
   try {
-    console.log("🔒 encryptApiKey called!");
-    console.log("  Input apiKey (length):", apiKey.length);
-    console.log("  Input apiKey prefix:", apiKey.substring(0, Math.min(10, apiKey.length)));
-    const combined = `${ENCRYPTION_KEY}:${apiKey}`;
-    console.log("  Combined (prefix):", combined.substring(0, Math.min(30, combined.length)));
-    const encrypted = Buffer.from(combined).toString("base64");
-    console.log("  Output encrypted (length):", encrypted.length);
-    return encrypted;
-  } catch (error) {
-    console.error("Encryption error:", error);
+    const iv = randomBytes(12);
+    const cipher = createCipheriv(ALGORITHM, deriveKey(getSecret()), iv);
+    const encrypted = Buffer.concat([
+      cipher.update(String(apiKey), "utf8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+
+    return [
+      VERSION,
+      iv.toString("base64url"),
+      tag.toString("base64url"),
+      encrypted.toString("base64url"),
+    ].join(".");
+  } catch {
     throw new Error("Failed to encrypt API key");
   }
 }
 
-/**
- * Decrypt API key - supports both old (with prefix) and new (without prefix) formats
- */
 export function decryptApiKey(encryptedKey) {
   if (!encryptedKey) return "";
-  
-  try {
-    console.log("🔓 decryptApiKey called!");
-    console.log("  Input encryptedKey (length):", encryptedKey.length);
-    const decoded = Buffer.from(encryptedKey, "base64").toString("utf-8");
-    console.log("  Decoded (length):", decoded.length);
-    console.log("  Decoded:", decoded);
-    
-    if (decoded.includes(":")) {
-      console.log("  Decoded includes colon!");
-      const [key, apiKey] = decoded.split(":");
-      console.log("  Key part:", key);
-      console.log("  ApiKey part (length):", apiKey?.length || 0);
-      console.log("  ENCRYPTION_KEY:", ENCRYPTION_KEY);
-      if (key === ENCRYPTION_KEY && apiKey) {
-        console.log("  ✅ Returning apiKey part!");
-        return apiKey;
-      } else {
-        console.log("  ⚠️ Key didn't match or no apiKey part! Returning entire decoded!");
-        return decoded;
-      }
+
+  if (encryptedKey.startsWith(`${VERSION}.`)) {
+    const parts = encryptedKey.split(".");
+    if (parts.length !== 4) throw new Error("Invalid encrypted API key");
+
+    try {
+      const iv = decode(parts[1]);
+      const tag = decode(parts[2]);
+      const encrypted = decode(parts[3]);
+      const decipher = createDecipheriv(
+        ALGORITHM,
+        deriveKey(getSecret()),
+        iv
+      );
+      decipher.setAuthTag(tag);
+      return Buffer.concat([
+        decipher.update(encrypted),
+        decipher.final(),
+      ]).toString("utf8");
+    } catch {
+      throw new Error("Failed to decrypt API key");
     }
-    
-    console.log("  ✅ No colon! Returning decoded!");
+  }
+
+  // Legacy format from the original local-only implementation.
+  try {
+    const decoded = Buffer.from(encryptedKey, "base64").toString("utf-8");
+    if (decoded.includes(":")) {
+      const separator = decoded.indexOf(":");
+      const prefix = decoded.slice(0, separator);
+      const apiKey = decoded.slice(separator + 1);
+      if (prefix === LEGACY_KEY && apiKey) return apiKey;
+      return decoded;
+    }
     return decoded;
-  } catch (error) {
-    console.error("❌ Decryption error:", error);
+  } catch {
     throw new Error("Failed to decrypt API key");
   }
 }
 
-/**
- * Mask API key for display (show only first/last chars)
- */
 export function maskApiKey(apiKey) {
   if (!apiKey || apiKey.length < 8) return "••••••••";
-  
   const first = apiKey.substring(0, 4);
   const last = apiKey.substring(apiKey.length - 4);
   return `${first}••••${last}`;
-}
-
-/**
- * Validate API key format
- */
-export function validateApiKeyFormat(providerName, apiKey) {
-  if (!apiKey) return false;
-
-  const key = apiKey.trim();
-  if (key.length < 10) return false;
-  
-  const formats = {
-    openai: /^(sk-proj-|sk-)[a-zA-Z0-9-_]{10,}$/,
-    anthropic: /^sk-ant-[a-zA-Z0-9-_]{10,}$/,
-    qwen: /^sk-or-v1-[A-Za-z0-9]+$/, // Qwen uses OpenRouter key format
-    openrouter: /^sk-or-v1-[A-Za-z0-9]+$/, // OpenRouter key format
-    gemini: /^AIza[0-9A-Za-z-_]{10,}$/, // Google AI Studio key format (AIza + 35 chars, min 10 for leniency)
-  };
-  
-  const regex = formats[providerName];
-  if (!regex) return key.length >= 10; // Unknown provider, allow any reasonable key
-  
-  return regex.test(key);
 }

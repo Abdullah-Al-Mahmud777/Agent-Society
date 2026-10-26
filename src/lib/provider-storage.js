@@ -1,175 +1,145 @@
 /**
- * Provider Storage Service
- * 
- * Local storage implementation for user provider configurations
- * For production: Replace with proper database (PostgreSQL, MongoDB, etc.)
+ * Provider storage client.
+ *
+ * Provider configurations are stored in Turso through the authenticated
+ * /api/providers endpoints. Browser storage is not read and cannot leak one
+ * account's providers or encrypted keys into another account.
  */
 
-import { createUserProvider, userProviderSchema, PROVIDERS } from "./db-schema";
+import { clearUserCaches } from "@/lib/client-cache";
 
-const STORAGE_KEY = "user_providers";
-
-/**
- * Get all user providers from storage
- */
-export function getAllProviders() {
-  if (typeof window === "undefined") return [];
-  
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
-    
-    const providers = JSON.parse(stored);
-    // Filter out legacy providers (like Gemini) that are no longer supported
-    const validProviders = providers.filter(p => 
-      Object.values(PROVIDERS).includes(p.providerName)
-    );
-    // Update storage if we removed any invalid providers
-    if (validProviders.length !== providers.length) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(validProviders));
-    }
-    return validProviders.map(p => userProviderSchema.parse(p));
-  } catch (error) {
-    console.error("Error reading providers:", error);
-    return [];
-  }
-}
-
-/**
- * Get a specific provider by ID
- */
-export function getProviderById(id) {
-  const providers = getAllProviders();
-  return providers.find(p => p.id === id);
-}
-
-/**
- * Get active provider for a user
- * If no userId provided, returns the first active provider (for single-user apps)
- */
-export function getActiveProvider(userId = "default-user") {
-  const providers = getAllProviders();
-  
-  // If userId provided, find exact match
-  if (userId) {
-    return providers.find(p => p.userId === userId && p.isActive);
-  }
-  
-  // Otherwise return any active provider (for single-user demo apps)
-  return providers.find(p => p.isActive);
-}
-
-/**
- * Save a new provider configuration
- */
-export function saveProvider(providerData) {
+function assertBrowser() {
   if (typeof window === "undefined") {
-    throw new Error("Cannot save provider on server side");
+    throw new Error("Provider storage is only available in the browser");
   }
-  
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, {
+    cache: "no-store",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  let data = null;
   try {
-    const providers = getAllProviders();
-    const newProvider = createUserProvider(providerData);
-    
-    // Deactivate other providers for this user if this one is active
-    if (newProvider.isActive) {
-      providers.forEach(p => {
-        if (p.userId === newProvider.userId) {
-          p.isActive = false;
-        }
-      });
-    }
-    
-    providers.push(newProvider);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(providers));
-    
-    return newProvider;
-  } catch (error) {
-    console.error("Error saving provider:", error);
-    throw new Error("Failed to save provider configuration");
+    data = await response.json();
+  } catch {
+    data = null;
   }
+
+  if (response.status === 401) {
+    clearUserCaches();
+    window.location.assign("/login");
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || data?.message || "Provider request failed");
+  }
+
+  return data;
 }
 
-/**
- * Update an existing provider
- */
-export function updateProvider(id, updates) {
-  if (typeof window === "undefined") {
-    throw new Error("Cannot update provider on server side");
-  }
-  
-  try {
-    const providers = getAllProviders();
-    const index = providers.findIndex(p => p.id === id);
-    
-    if (index === -1) {
-      throw new Error("Provider not found");
-    }
-    
-    const updated = {
-      ...providers[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    // Validate updated data
-    const validated = userProviderSchema.parse(updated);
-    
-    // Deactivate other providers if this one is being activated
-    if (validated.isActive) {
-      providers.forEach((p, i) => {
-        if (i !== index && p.userId === validated.userId) {
-          p.isActive = false;
-        }
-      });
-    }
-    
-    providers[index] = validated;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(providers));
-    
-    return validated;
-  } catch (error) {
-    console.error("Error updating provider:", error);
-    throw new Error("Failed to update provider configuration");
-  }
+export async function getAllProviders() {
+  assertBrowser();
+  const data = await requestJson("/api/providers");
+  return data.providers || [];
 }
 
-/**
- * Delete a provider
- */
-export function deleteProvider(id) {
-  if (typeof window === "undefined") {
-    throw new Error("Cannot delete provider on server side");
-  }
-  
-  try {
-    const providers = getAllProviders();
-    const filtered = providers.filter(p => p.id !== id);
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-    return true;
-  } catch (error) {
-    console.error("Error deleting provider:", error);
-    throw new Error("Failed to delete provider configuration");
-  }
+export async function getProviderById(id) {
+  assertBrowser();
+  const providers = await getAllProviders();
+  return providers.find((provider) => provider.id === id) || null;
 }
 
-/**
- * Set a provider as active
- */
-export function setActiveProvider(id) {
-  const provider = getProviderById(id);
-  if (!provider) {
-    throw new Error("Provider not found");
-  }
-  
-  return updateProvider(id, { isActive: true });
+export async function getActiveProvider() {
+  assertBrowser();
+  const data = await requestJson("/api/providers?active=1");
+  return data.provider || null;
 }
 
-/**
- * Clear all providers (for testing/development)
- */
-export function clearAllProviders() {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(STORAGE_KEY);
+export async function saveProvider(providerData) {
+  assertBrowser();
+
+  const payload = {
+    action: "save",
+    providerName: providerData.providerName,
+    selectedModel: providerData.selectedModel,
+    isActive: providerData.isActive !== false,
+    metadata: providerData.metadata,
+  };
+
+  if (providerData.apiKey) {
+    payload.apiKey = providerData.apiKey;
+  } else if (providerData.encryptedApiKey) {
+    payload.encryptedApiKey = providerData.encryptedApiKey;
+  }
+
+  const data = await requestJson("/api/providers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return data.provider;
+}
+
+export async function updateProvider(id, updates) {
+  assertBrowser();
+  const { apiKey, ...safeUpdates } = updates || {};
+  const data = await requestJson("/api/providers", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "update",
+      id,
+      updates: safeUpdates,
+      apiKey,
+    }),
+  });
+  return data.provider;
+}
+
+export async function testProviderConnection({
+  id,
+  providerName,
+  apiKey,
+  selectedModel,
+} = {}) {
+  assertBrowser();
+  return requestJson("/api/providers", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "test",
+      id,
+      providerName,
+      apiKey,
+      selectedModel,
+    }),
+  });
+}
+
+export async function deleteProvider(id) {
+  assertBrowser();
+  await requestJson("/api/providers", {
+    method: "POST",
+    body: JSON.stringify({ action: "delete", id }),
+  });
+  return true;
+}
+
+export async function setActiveProvider(id) {
+  assertBrowser();
+  const data = await requestJson("/api/providers", {
+    method: "POST",
+    body: JSON.stringify({ action: "activate", id }),
+  });
+  return data.provider;
+}
+
+export async function clearAllProviders() {
+  assertBrowser();
+  await requestJson("/api/providers?all=true", { method: "DELETE" });
 }

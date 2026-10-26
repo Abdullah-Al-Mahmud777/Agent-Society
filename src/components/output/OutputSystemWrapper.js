@@ -17,6 +17,7 @@ export default function OutputSystemWrapper({ agents = [] }) {
 
 	// Ensure component only renders after hydration
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setIsMounted(true);
 	}, []);
 

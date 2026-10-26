@@ -20,7 +20,7 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  React Components (Lucide Icons, Motion Animations)     │   │
 │  │  Zustand State Management                                 │   │
-│  │  Local Storage (Agent Config, Provider Config)          │   │
+│  │  Session-aware ChatGPT-style workspace                   │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -28,13 +28,14 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 ┌─────────────────────────────────────────────────────────────────┐
 │                      API ROUTES (Next.js)                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ /api/        │  │ /api/        │  │ /api/        │         │
-│  │ agent-chat   │  │ agents/      │  │ providers   │         │
+│  │ /api/auth    │  │ /api/db      │  │ /api/        │         │
+│  │ register/    │  │ agents/      │  │ providers    │         │
+│  │ login/session│  │ conversations│  │ orchestrator │         │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
 │         │                  │                  │                 │
 │  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼───────┐         │
-│  │ Domain       │  │ Agent        │  │ Provider     │         │
-│  │ Enforcement  │  │ Execution    │  │ Management   │         │
+│  │ Session +    │  │ User-scoped  │  │ Provider     │         │
+│  │ rate limits  │  │ persistence  │  │ Management   │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -67,16 +68,21 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 ## Architecture Components
 
 ### Frontend Layer
-- **Society Page**: Main interface for interacting with agents
+- **Auth Pages**: `/login` and `/register` with validation, rate-limit feedback, and dark/light themes
+- **Society Page**: ChatGPT-style workspace with collapsible history, search, agent selection, conversation management, and responsive mobile drawer
 - **Agent Builder**: UI for creating and configuring custom agents
 - **Providers Page**: UI for managing LLM provider configurations
-- **State Management**: Zustand for agent and provider state
-- **Local Storage**: Client-side persistence for configurations
+- **State Management**: Zustand for the in-session agent index, hydrated from Turso
+- **Persistence**: Turso is the source of truth for users, sessions, agents, providers, conversations, messages, and memory; browser storage is not used for user data
 
-### API Layer
+### Auth and API Layer
+- **Auth Routes**: `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
+- **User Settings Route**: `/api/user/settings` for theme and preferences
+- **Database Routes**: `/api/db/agents`, `/api/db/conversations`, `/api/db/memories`, `/api/db/status`
 - **Agent Chat Route**: `/api/agent-chat` - Handles chat requests with domain enforcement
 - **Agent Execution Route**: `/api/agents/execute` - Executes agent tasks
-- **Providers Route**: `/api/providers` - Manages provider configurations and testing
+- **Providers Route**: `/api/providers` - Manages encrypted provider configurations and testing
+- **Orchestrator Route**: `/api/orchestrator/chat` - Runs the selected agents and persists the run
 
 ### Provider Factory Layer
 - **Client Creation**: Dynamically creates LLM clients based on provider
@@ -101,21 +107,49 @@ User Input → Frontend → API Route → Provider Factory → LLM Provider → 
 
 ## Key Features
 
+- **Secure Multi-User Auth**: Email/password accounts, scrypt password hashing, hashed session tokens, httpOnly cookies, CSRF-safe same-site cookies, and login/registration rate limits
+- **Account Isolation**: Every agent, provider, conversation, message, and memory query is scoped to the signed-in user
+- **ChatGPT-Style Workspace**: Collapsible sidebar, conversation history grouped by date, search, new chat, rename/delete dialogs, agent toggles, and mobile drawer
+- **Dark and Light Mode**: Cookie-backed theme persisted per account
 - **Domain Enforcement**: Agents only respond within their designated domains
 - **Multi-Provider Support**: Switch between Gemini, OpenAI, Anthropic, Qwen
 - **Fallback Models**: Automatic model switching on errors
 - **Retry Logic**: Exponential backoff for transient errors
-- **Provider Configuration**: UI-based API key management
+- **Encrypted Provider Keys**: AES-256-GCM encryption on the server; plaintext keys never reach the browser
 - **Custom Agents**: Build specialized agents with specific domains
 
 ## Getting Started
 
 1. Clone the repository
 2. Install dependencies: `npm install`
-3. Run development server: `npm run dev`
-4. Configure provider at `/providers`
-5. Create agents at `/agent-builder`
-6. Interact with agents at `/society`
+3. Configure `.env.local`:
+   ```
+   TURSO_DATABASE_URL=libsql://your-database.turso.io
+   TURSO_AUTH_TOKEN=your-turso-token
+   API_KEY_ENCRYPTION_SECRET=your-random-server-secret
+   SESSION_TTL_DAYS=30
+   ```
+   Create a Turso token with `turso db tokens create <database-name>` and generate
+   the encryption secret with `openssl rand -hex 32`.
+4. Apply the database schema: `npm run db:migrate`
+5. Verify the connection and CRUD operations: `npm run db:verify`
+6. Run development server: `npm run dev`
+7. Open `/register` to create the first account, then sign in at `/login`
+8. Configure a provider at `/providers`
+9. Create agents at `/builder`
+10. Interact with the society at `/society`
+
+The first registered account claims any legacy records previously stored under
+the server-side `default-user` ID. Browser `localStorage` is intentionally not
+used for agents, providers, conversations, or memory, so signing into another
+account cannot expose the previous user's data.
+
+## Tests
+
+- `npm test` — run all unit tests
+- `npm run test:auth` — password hashing, validation, and rate-limit tests
+- `npm run test:ai` — provider retry and Gemini fallback tests
+- `npm run lint` and `npm run build` — static checks and production build
 
 ## About the Project
 
@@ -255,4 +289,7 @@ Building this project was a tremendous learning experience across several domain
 
 ## Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment instructions to Vercel and Alibaba Cloud.
+Deploy to Vercel or another Node.js host. Set `TURSO_DATABASE_URL`,
+`TURSO_AUTH_TOKEN`, `API_KEY_ENCRYPTION_SECRET`, and the provider key variables
+in the host environment, then run `npm run db:migrate` against the production
+Turso database before opening the app.

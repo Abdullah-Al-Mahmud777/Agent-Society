@@ -1,5 +1,9 @@
-import Hero from "@/components/landing/Hero";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/session";
 
-export default function HomePage() {
-	return <Hero />;
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const user = await getCurrentUser().catch(() => null);
+  redirect(user ? "/society" : "/login");
 }

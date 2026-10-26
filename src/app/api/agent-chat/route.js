@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { buildPersonalityContext } from "@/lib/personality";
 import { createProvider } from "@/lib/provider-factory";
 import { encryptApiKey } from "@/lib/encryption";
+import { ensureSchema } from "@/lib/db/client";
+import { getUserId } from "@/lib/db/http";
+import { AuthenticationError, unauthorizedResponse } from "@/lib/auth/session";
+import {
+  addAgentMemoryEntries,
+  addMessage,
+  createConversation,
+  getActiveProvider,
+  getConversation,
+  recordExecution,
+} from "@/lib/db/repositories";
 
 // HARDCODED API KEY - Replace with your actual OpenRouter API key
 const HARDCODED_QWEN_API_KEY = "YOUR_OPENROUTER_API_KEY_HERE";
@@ -19,29 +30,20 @@ export const runtime = "nodejs";
  * - Falls back to environment variables if providerConfig is not provided
  */
 export async function POST(request) {
-    // ============================================
-    // DIAGNOSTIC LOGGING FOR VERCEL
-    // ============================================
-    console.log("========== API ROUTE DEBUG START ==========");
-    console.log("Environment Check:");
-    console.log("- Is QWEN_API_KEY present?:", !!process.env.QWEN_API_KEY);
-    console.log("- QWEN_API_KEY length:", process.env.QWEN_API_KEY?.length || 0);
-    console.log("- QWEN_API_KEY starts with:", process.env.QWEN_API_KEY?.substring(0, 5) || "N/A");
-    console.log("- DEFAULT_PROVIDER:", process.env.DEFAULT_PROVIDER || "not set");
-    console.log("- DEFAULT_MODEL:", process.env.DEFAULT_MODEL || "not set");
-    console.log("- NEXT_PUBLIC_ENCRYPTION_KEY present?:", !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
-    console.log("- Runtime:", process.env.VERCEL ? "Vercel" : "Local");
-    
     try {
-        const { prompt, agent, providerConfig } = await request.json();
-        
-        console.log("Request payload:");
-        console.log("- Prompt length:", prompt?.length || 0);
-        console.log("- Agent name:", agent?.name || "N/A");
-        console.log("- providerConfig provided from client?:", !!providerConfig);
+        const requestBody = await request.json();
+        const { prompt, agent, providerConfig } = requestBody;
+        const userId = await getUserId(request);
+
+        let databaseReady = false;
+        try {
+            await ensureSchema();
+            databaseReady = true;
+        } catch (dbError) {
+            console.warn("Turso unavailable for agent chat persistence:", dbError.message);
+        }
 
         if (!prompt || !prompt.trim()) {
-            console.log("❌ Error: Prompt is missing or empty");
             return NextResponse.json(
                 { success: false, error: "Prompt is required" },
                 { status: 400 }
@@ -49,7 +51,6 @@ export async function POST(request) {
         }
 
         if (!agent || !agent.name) {
-            console.log("❌ Error: Agent is missing or invalid");
             return NextResponse.json(
                 { success: false, error: "Agent is required" },
                 { status: 400 }
@@ -60,10 +61,25 @@ export async function POST(request) {
         // PROVIDER CONFIGURATION HANDLING
         // ============================================
         let config = providerConfig;
-        
+
+        if (!config && databaseReady) {
+            try {
+                const storedProvider = await getActiveProvider(userId);
+                if (storedProvider?.encryptedApiKey) {
+                    config = {
+                        providerName: storedProvider.providerName,
+                        selectedModel: storedProvider.selectedModel,
+                        encryptedApiKey: storedProvider.encryptedApiKey,
+                        userId,
+                        isActive: true,
+                    };
+                }
+            } catch (error) {
+                console.warn("Could not load provider from Turso:", error.message);
+            }
+        }
+
         if (!config) {
-            console.log("⚠️  No providerConfig from client - attempting environment variable fallback");
-            
             // Fallback to environment variables (for Vercel production)
             const envProvider = process.env.DEFAULT_PROVIDER || "qwen";
             const envModel = process.env.DEFAULT_MODEL || "qwen/qwen3.7-plus";
@@ -77,34 +93,16 @@ export async function POST(request) {
                               process.env.OPENAI_API_KEY || 
                               process.env.ANTHROPIC_API_KEY;
             
-            console.log("Environment fallback check:");
-            console.log("- Provider:", envProvider);
-            console.log("- Model:", envModel);
-            console.log("- API Key found?:", !!envApiKey);
-            console.log("- API Key source:", process.env.OPENROUTER_API_KEY ? "OPENROUTER_API_KEY" :
-                                           process.env.QWEN_API_KEY ? "QWEN_API_KEY" :
-                                           process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" :
-                                            process.env.OPENAI_API_KEY ? "OPENAI_API_KEY" :
-                                            process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : "NONE");
-            
             if (envApiKey) {
-                console.log("✅ Using environment variable fallback");
-                
                 // Create config object with encrypted API key
                 config = {
                     providerName: envProvider,
                     selectedModel: envModel,
                     encryptedApiKey: encryptApiKey(envApiKey),
-                    userId: "default-user",
+                    userId,
                     isActive: true,
                 };
-                
-                console.log("✅ Config created successfully");
             } else {
-                console.log("❌ CRITICAL: No API key found in environment variables");
-                console.log("❌ Please ensure QWEN_API_KEY is set in Vercel Environment Variables");
-                console.log("❌ Available env keys:", Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')));
-                
                 return NextResponse.json(
                     { 
                         success: false, 
@@ -113,14 +111,11 @@ export async function POST(request) {
                     { status: 500 }
                 );
             }
-        } else {
-            console.log("✅ Using providerConfig from client (localStorage)");
         }
 
         // ============================================
         // BUILD SYSTEM PROMPT
         // ============================================
-        console.log("Building system prompt...");
         const personalityContext = buildPersonalityContext(agent);
         const systemPrompt = [
             personalityContext,
@@ -129,33 +124,117 @@ export async function POST(request) {
         ]
             .filter(Boolean)
             .join("\n\n");
-        
-        console.log("✅ System prompt built, length:", systemPrompt.length);
 
         // ============================================
         // CREATE PROVIDER CLIENT
         // ============================================
-        console.log("Creating provider client...");
-        console.log("- Provider:", config.providerName);
-        console.log("- Model:", config.selectedModel);
-        
         const providerFactory = createProvider(config);
         const client = providerFactory.getClient();
-        
-        console.log("✅ Provider client created successfully");
 
         // ============================================
         // GENERATE RESPONSE
         // ============================================
-        console.log("Generating response from LLM...");
         const responseText = await client.generateContent(prompt.trim(), {
             temperature: agent.temperature ?? 0.7,
             maxTokens: agent.maxTokens ?? 2048,
             systemPrompt: systemPrompt,
         });
-        
-        console.log("✅ Response received, length:", responseText?.length || 0);
-        console.log("========== API ROUTE DEBUG END ==========");
+
+        const timestamp = new Date().toISOString();
+        let conversationId = requestBody.conversationId || null;
+        let persistence = { ok: false, error: "Database is not configured" };
+
+        if (databaseReady) {
+            try {
+                if (conversationId) {
+                    const existing = await getConversation(conversationId, userId);
+                    if (!existing) conversationId = null;
+                }
+                if (!conversationId) {
+                    conversationId = crypto.randomUUID();
+                    await createConversation({
+                        id: conversationId,
+                        userId,
+                        title: prompt.trim().slice(0, 120),
+                    });
+                }
+
+                await addMessage({
+                    conversationId,
+                    userId,
+                    role: "user",
+                    content: prompt.trim(),
+                });
+
+                await addMessage({
+                    conversationId,
+                    userId,
+                    role: "assistant",
+                    content: responseText,
+                    agentId: agent.id ?? null,
+                    agentName: agent.name,
+                    metadata: {
+                        provider: config.providerName,
+                        model: config.selectedModel,
+                    },
+                    createdAt: timestamp,
+                });
+
+                if (agent.id) {
+                    await recordExecution(
+                        {
+                            agentId: agent.id,
+                            conversationId,
+                            userRequest: prompt.trim(),
+                            success: true,
+                            output: responseText,
+                            executionStrategy: "single-agent",
+                            createdAt: timestamp,
+                        },
+                        userId
+                    );
+
+                    await addAgentMemoryEntries(
+                        agent.id,
+                        [
+                            {
+                                entryType: "conversation",
+                                role: "user",
+                                content: prompt.trim(),
+                                metadata: { conversationId },
+                                createdAt: timestamp,
+                            },
+                            {
+                                entryType: "conversation",
+                                role: "assistant",
+                                content: responseText,
+                                metadata: { conversationId, agentName: agent.name },
+                                createdAt: timestamp,
+                            },
+                            {
+                                entryType: "execution",
+                                role: "system",
+                                content: responseText,
+                                metadata: {
+                                    conversationId,
+                                    userRequest: prompt.trim(),
+                                    success: true,
+                                    executionStrategy: "single-agent",
+                                    timestamp,
+                                },
+                                createdAt: timestamp,
+                            },
+                        ],
+                        userId
+                    );
+                }
+
+                persistence = { ok: true };
+            } catch (dbError) {
+                console.error("Failed to persist agent chat:", dbError);
+                persistence = { ok: false, error: "Failed to persist agent chat" };
+            }
+        }
 
         return NextResponse.json({
             success: true,
@@ -165,18 +244,27 @@ export async function POST(request) {
             response: responseText,
             provider: config.providerName,
             model: config.selectedModel,
-            timestamp: new Date().toISOString(),
+            timestamp,
+            conversationId,
+            persistence,
         });
         
     } catch (error) {
-        console.error("========== API ROUTE ERROR ==========");
-        console.error("Error type:", error.name);
-        console.error("Error message:", error.message);
-        console.error("Error stack:", error.stack);
-        console.error("======================================");
-        
-        // Handle rate limiting
-        if (error.message?.includes("429") || error.message?.includes("quota")) {
+        if (error instanceof AuthenticationError || error?.code === "UNAUTHENTICATED") {
+            return unauthorizedResponse();
+        }
+
+        console.error("Agent chat API error:", error);
+
+        const isUserFacing = Boolean(error?.userFacing);
+        const status =
+            isUserFacing && Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+                ? error.status
+                : error.message?.includes("429") || error.message?.includes("quota")
+                    ? 429
+                    : 500;
+
+        if (!isUserFacing && status === 429) {
             return NextResponse.json(
                 {
                     success: false,
@@ -186,14 +274,16 @@ export async function POST(request) {
             );
         }
 
-        // Return detailed error for debugging
         return NextResponse.json(
             {
                 success: false,
                 error: error.message || "Failed to generate response",
-                details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+                details:
+                    !isUserFacing && process.env.NODE_ENV === "development"
+                        ? error.message
+                        : undefined,
             },
-            { status: 500 }
+            { status }
         );
     }
 }

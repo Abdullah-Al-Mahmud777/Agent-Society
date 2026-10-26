@@ -12,7 +12,12 @@ import OpenAI from "openai";
 import { decryptApiKey } from "./encryption";
 import { PROVIDERS } from "./db-schema";
 import { QWEN_BASE_URL } from "@/providers/qwenProvider";
-import { createGeminiClient as makeGeminiClient } from "@/providers/geminiProvider";
+import { AI_RETRY_CONFIG } from "./ai-retry";
+import {
+  createGeminiClient as makeGeminiClient,
+  generateGeminiContent,
+  normalizeGeminiModel,
+} from "@/providers/geminiProvider";
 
 /**
  * Provider Factory - Creates LLM client instances dynamically
@@ -63,6 +68,8 @@ export class LLMProviderFactory {
       const qwen = new OpenAI({
         apiKey: this.apiKey,
         baseURL: QWEN_BASE_URL,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
       });
       
       return {
@@ -98,7 +105,11 @@ export class LLMProviderFactory {
    */
   createOpenAIClient() {
     try {
-      const openai = new OpenAI({ apiKey: this.apiKey });
+      const openai = new OpenAI({
+        apiKey: this.apiKey,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
+      });
       
       return {
         provider: PROVIDERS.OPENAI,
@@ -132,7 +143,11 @@ export class LLMProviderFactory {
    */
   createAnthropicClient() {
     try {
-      const anthropic = new Anthropic({ apiKey: this.apiKey });
+      const anthropic = new Anthropic({
+        apiKey: this.apiKey,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
+      });
       
       return {
         provider: PROVIDERS.ANTHROPIC,
@@ -164,6 +179,8 @@ export class LLMProviderFactory {
       const openrouter = new OpenAI({
         apiKey: this.apiKey,
         baseURL: "https://openrouter.ai/api/v1",
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
       });
       
       return {
@@ -200,7 +217,7 @@ export class LLMProviderFactory {
   createGeminiClient() {
     try {
       const ai = makeGeminiClient(this.apiKey);
-      const model = this.model || "gemini-2.5-flash";
+      const model = normalizeGeminiModel(this.model);
 
       return {
         provider: PROVIDERS.GEMINI,
@@ -208,16 +225,16 @@ export class LLMProviderFactory {
         model,
 
         async generateContent(prompt, options = {}) {
-          const response = await ai.models.generateContent({
-            model: this.model,
+          return generateGeminiContent({
+            ai,
             contents: prompt,
+            model,
             config: {
               ...(options.systemPrompt ? { systemInstruction: options.systemPrompt } : {}),
               temperature: options.temperature ?? 0.7,
               maxOutputTokens: options.maxTokens ?? 2048,
             },
           });
-          return response.text;
         },
       };
     } catch (error) {

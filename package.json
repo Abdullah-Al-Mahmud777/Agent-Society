@@ -7,20 +7,25 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "kill-port": "lsof -ti:3000 | xargs kill -9"
+    "kill-port": "lsof -ti:3000 | xargs kill -9",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "db:verify": "node --env-file-if-exists=.env.local scripts/verify-db.mjs",
+    "test:ai": "node --test --no-warnings tests/ai-retry.test.mjs tests/gemini-fallback.test.mjs",
+    "test": "node --test --no-warnings tests/*.test.mjs",
+    "test:auth": "node --test --no-warnings tests/auth.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
     "@google/genai": "^2.24.0",
+    "@libsql/client": "^0.18.0",
     "lucide-react": "^1.23.0",
-    "motion": "^12.42.2",
     "next": "16.2.10",
     "openai": "^6.45.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "zod": "^4.4.3",
+    "server-only": "^0.0.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

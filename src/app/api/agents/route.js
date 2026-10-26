@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRequestUser, unauthorizedResponse } from "@/lib/auth/session";
 import OpenAI from "openai";
 import { buildPersonalityContext } from "@/lib/personality";
 import {
@@ -404,6 +405,9 @@ async function parseRequest(request) {
 
 export async function POST(request) {
     try {
+        const user = await getRequestUser(request);
+        if (!user) return unauthorizedResponse();
+
         const body = await parseRequest(request);
         const businessIdea = getBusinessIdea(body);
 
@@ -431,6 +435,9 @@ export async function POST(request) {
 
 export async function GET(request) {
     try {
+        const user = await getRequestUser(request);
+        if (!user) return unauthorizedResponse();
+
         const { searchParams } = new URL(request.url);
         const businessIdea = searchParams.get("businessIdea")?.trim() || "";
 
