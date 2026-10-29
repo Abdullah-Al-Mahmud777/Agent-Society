@@ -2,23 +2,29 @@
 
 import { usePathname } from "next/navigation";
 import NavBar from "./NavBar";
-import StoreHydrator from "./StoreHydrator";
 
 /**
- * Client shell wrapping every route: triggers store rehydration, renders the
- * persistent glass nav, and handles page transitions.
+ * Client shell wrapping every route: renders the persistent glass nav and
+ * handles page transitions.
  */
 export default function AppShell({ children }) {
     const pathname = usePathname();
+    const isAuthPage = pathname === "/login" || pathname === "/register";
+    const isChatPage = pathname === "/society";
+
+    if (isAuthPage) {
+        return <>{children}</>;
+    }
 
     return (
-        <>
-            <StoreHydrator />
-            <NavBar />
-            {/* Remove animations completely - they cause blank screens during navigation */}
-            <div key={pathname}>
+        <div className={isChatPage ? "h-dvh overflow-hidden" : undefined}>
+            {!isChatPage && <NavBar />}
+            <div
+                key={pathname}
+                className={isChatPage ? "h-full min-h-0" : undefined}
+            >
                 {children}
             </div>
-        </>
+        </div>
     );
 }

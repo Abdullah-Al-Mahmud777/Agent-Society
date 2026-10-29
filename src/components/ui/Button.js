@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { cn } from "./cn";
 
 const VARIANTS = {
@@ -28,14 +28,8 @@ function Spinner() {
 }
 
 /**
- * Button primitive. Consolidates the primary/secondary/danger/pill button
- * patterns repeated ~30x. Adds tap feedback + reduced-motion guard.
- *
- * Props:
- *  - variant: primary | secondary | ghost | danger | accent
- *  - size: sm | md | lg | icon
- *  - loading: shows spinner, disables
- *  - as: render a different element (e.g. Next Link) — pass component
+ * Button primitive. Consolidates button and link actions into one consistent
+ * control without shipping a client animation library.
  */
 export function Button({
     children,
@@ -45,13 +39,14 @@ export function Button({
     disabled = false,
     className,
     type = "button",
+    href,
     ...rest
 }) {
-    const reduce = useReducedMotion();
     const isDisabled = disabled || loading;
 
     const classes = cn(
-        "inline-flex items-center justify-center gap-2 rounded-pill transition-colors outline-none",
+        "inline-flex items-center justify-center gap-2 rounded-pill transition-[color,background-color,border-color,transform] duration-150 outline-none",
+        "active:scale-[0.98] motion-reduce:transform-none",
         "focus-visible:ring-2 focus-visible:ring-brand-cyan/40",
         "disabled:cursor-not-allowed disabled:opacity-50",
         VARIANTS[variant] ?? VARIANTS.secondary,
@@ -59,16 +54,24 @@ export function Button({
         className
     );
 
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className={classes}
+                aria-disabled={isDisabled || undefined}
+                {...rest}
+            >
+                {loading && <Spinner />}
+                {children}
+            </Link>
+        );
+    }
+
     return (
-        <motion.button
-            type={type}
-            className={classes}
-            disabled={isDisabled}
-            whileTap={reduce || isDisabled ? undefined : { scale: 0.97 }}
-            {...rest}
-        >
+        <button type={type} className={classes} disabled={isDisabled} {...rest}>
             {loading && <Spinner />}
             {children}
-        </motion.button>
+        </button>
     );
 }

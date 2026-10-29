@@ -1,69 +1,244 @@
-import { NextResponse } from 'next/server';
-import { Orchestrator } from '../../../../lib/orchestrator';
-import { decryptApiKey } from '../../../../lib/encryption';
+import { NextResponse } from "next/server";
+import { Orchestrator } from "../../../../lib/orchestrator";
+import { decryptApiKey } from "../../../../lib/encryption";
+import {
+  addMessage,
+  createConversation,
+  getActiveProvider,
+  getAgentMemories,
+  getConversation,
+  listAgents,
+  persistOrchestratorTurn,
+} from "@/lib/db/repositories";
+import { ensureSchema } from "@/lib/db/client";
+import { getUserId } from "@/lib/db/http";
+import { AuthenticationError, unauthorizedResponse } from "@/lib/auth/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function conversationTitle(userRequest) {
+  const normalized = String(userRequest || "").replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, 120) : "New conversation";
+}
+
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { userRequest, agents, globalContext = '', executionStrategy = 'parallel', apiKey, encryptedApiKey, agentMemories = {}, selectedAgents = [] } = body;
-    
-    console.log("=== ORCHESTRATOR API DEBUG ===");
-    console.log("User request:", userRequest);
-    console.log("Agents received:", Array.isArray(agents) ? agents.length : "Not an array");
-    console.log("Selected agents:", Array.isArray(selectedAgents) ? selectedAgents.length : "Not an array");
-    console.log("Agents data:", agents);
-    console.log("Execution strategy:", executionStrategy);
-    
-    // #region debug-point A:route-entry
-    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"A",location:"src/app/api/orchestrator/chat/route.js:8",msg:"[DEBUG] Orchestrator route received request",data:{hasUserRequest:Boolean(userRequest),agentCount:Array.isArray(agents)?agents.length:-1,selectedAgentCount:Array.isArray(selectedAgents)?selectedAgents.length:-1,executionStrategy,hasApiKey:Boolean(apiKey),hasEncryptedApiKey:Boolean(encryptedApiKey),agentProviders:Array.isArray(agents)?agents.map((agent)=>agent?.aiProvider??null):[]},ts:Date.now()})}).catch(()=>{});
-    // #endregion
+    const {
+      userRequest,
+      agents: bodyAgents,
+      globalContext = "",
+      executionStrategy = "parallel",
+      selectedAgents = [],
+    } = body;
 
-    // Validate required fields
-    if (!userRequest) {
-      return NextResponse.json({ error: 'User request is required' }, { status: 400 });
-    }
-    if (!Array.isArray(agents)) {
-      return NextResponse.json({ error: 'Agents array is required' }, { status: 400 });
-    }
-    
-    if (agents.length === 0) {
-      console.log("WARNING: Empty agents array received");
-      return NextResponse.json({ error: 'No agents provided. Please create agents first.' }, { status: 400 });
+    if (typeof userRequest !== "string" || !userRequest.trim()) {
+      return NextResponse.json({ error: "User request is required" }, { status: 400 });
     }
 
-    // Get API key from env or body (decrypt if needed)
-    let finalApiKey = apiKey;
-    if (!finalApiKey && encryptedApiKey) {
-      finalApiKey = decryptApiKey(encryptedApiKey);
-      // #region debug-point B:decryption-result
-      fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"B",location:"src/app/api/orchestrator/chat/route.js:22",msg:"[DEBUG] Decrypted API key in orchestrator route",data:{decryptedLength:finalApiKey?.length??0,decryptedPrefix:finalApiKey?finalApiKey.slice(0,8):null},ts:Date.now()})}).catch(()=>{});
-      // #endregion
+    if (userRequest.length > 20000) {
+      return NextResponse.json(
+        { error: "User request is too long" },
+        { status: 400 }
+      );
+    }
+
+    const userId = await getUserId(request);
+    let persistence = { ok: false, error: "Database is not configured" };
+    let databaseReady = false;
+    let conversationId = body.conversationId || null;
+
+    try {
+      await ensureSchema();
+      databaseReady = true;
+      persistence = { ok: true };
+    } catch (error) {
+      console.warn("[orchestrator] Turso unavailable, running without persistence:", error.message);
+    }
+
+    let agents = Array.isArray(bodyAgents) ? bodyAgents : [];
+
+    if (databaseReady) {
+      try {
+        const storedAgents = await listAgents(userId);
+        if (storedAgents.length > 0) {
+          agents = storedAgents;
+        }
+
+        const existing = conversationId
+          ? await getConversation(conversationId, userId)
+          : null;
+
+        if (!existing) {
+          conversationId = crypto.randomUUID();
+          await createConversation({
+            id: conversationId,
+            userId,
+            title: conversationTitle(userRequest),
+          });
+        }
+
+        await addMessage({
+          conversationId,
+          userId,
+          role: "user",
+          content: userRequest,
+          metadata: { executionStrategy },
+        });
+      } catch (error) {
+        console.error("[orchestrator] Failed to prepare database state:", error);
+        persistence = { ok: false, error: "Failed to prepare database state" };
+        databaseReady = false;
+      }
+    }
+
+    if (!Array.isArray(agents) || agents.length === 0) {
+      return NextResponse.json(
+        { error: "No agents provided. Please create agents first." },
+        { status: 400 }
+      );
+    }
+
+    const selectedIds = Array.isArray(selectedAgents)
+      ? selectedAgents
+          .map((agent) => (typeof agent === "string" ? agent : agent?.id))
+          .filter(Boolean)
+      : [];
+
+    let agentMemories = {};
+    if (databaseReady) {
+      try {
+        agentMemories = await getAgentMemories(
+          agents.map((agent) => agent.id),
+          userId
+        );
+      } catch (error) {
+        console.error("[orchestrator] Failed to load agent memories:", error);
+      }
+    }
+
+    let finalApiKey = null;
+    let activeProviderConfig = null;
+    if (databaseReady) {
+      try {
+        const provider = await getActiveProvider(userId);
+        if (provider?.encryptedApiKey) {
+          finalApiKey = decryptApiKey(provider.encryptedApiKey);
+          activeProviderConfig = provider;
+        }
+      } catch (error) {
+        console.warn("[orchestrator] Could not load active provider:", error.message);
+      }
     }
     if (!finalApiKey) {
-      finalApiKey = process.env.OPENROUTER_API_KEY || process.env.QWEN_API_KEY;
+      finalApiKey =
+        process.env.OPENROUTER_API_KEY ||
+        process.env.QWEN_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.OPENAI_API_KEY ||
+        process.env.ANTHROPIC_API_KEY;
     }
     if (!finalApiKey) {
-      return NextResponse.json({ error: 'API key is required' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            "No AI provider is configured. Add an encrypted API key in Providers.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // The app stores one active provider key. Use that provider for every
+    // agent so an older agent config cannot send a Gemini key to OpenRouter
+    // (or vice versa).
+    if (activeProviderConfig) {
+      agents = agents.map((agent) => ({
+        ...agent,
+        aiProvider: activeProviderConfig.providerName,
+        model: activeProviderConfig.selectedModel,
+      }));
     }
 
     const orchestrator = new Orchestrator({
       agents,
       apiKey: finalApiKey,
+      defaultProvider:
+        activeProviderConfig?.providerName || agents[0]?.aiProvider,
+      defaultModel: activeProviderConfig?.selectedModel || agents[0]?.model,
       executionStrategy,
       agentMemories,
-      selectedAgents,
+      selectedAgents: selectedIds,
     });
 
-    console.log("Starting orchestrator run...");
     const result = await orchestrator.run(userRequest, globalContext);
-    console.log("Orchestrator run completed:", result);
 
-    return NextResponse.json(result);
+    if (databaseReady && conversationId) {
+      try {
+        const runId = crypto.randomUUID();
+        const assistantTimestamp = new Date().toISOString();
+        await persistOrchestratorTurn({
+          run: {
+            id: runId,
+            conversationId,
+            userRequest,
+            globalContext,
+            finalResponse: result.finalResponse,
+            agentOutputs: result.agentOutputs || [],
+            relevantAgents: result.relevantAgents || [],
+            executionStrategy,
+            success: result.success !== false,
+            error: result.error ?? null,
+            createdAt: assistantTimestamp,
+          },
+          agentOutputs: result.agentOutputs || [],
+          assistantMessage: {
+            conversationId,
+            role: "assistant",
+            content: result.finalResponse || result.error || "",
+            metadata: {
+              agentOutputs: result.agentOutputs || [],
+              relevantAgents: result.relevantAgents || [],
+              orchestratorRunId: runId,
+            },
+            createdAt: assistantTimestamp,
+          },
+          userId,
+        });
+      } catch (error) {
+        console.error("[orchestrator] Failed to persist run:", error);
+        persistence = { ok: false, error: "Failed to persist orchestration results" };
+      }
+    }
+
+    return NextResponse.json({
+      ...result,
+      conversationId,
+      persistence,
+    });
   } catch (error) {
-    // #region debug-point E:route-error
-    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"E",location:"src/app/api/orchestrator/chat/route.js:45",msg:"[DEBUG] Orchestrator route threw error",data:{name:error?.name??null,message:error?.message??null,stackTop:error?.stack?.split("\n").slice(0,3).join(" | ")??null},ts:Date.now()})}).catch(()=>{});
-    // #endregion
-    console.error('Orchestrator API error:', error);
-    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
+    if (error instanceof AuthenticationError || error?.code === "UNAUTHENTICATED") {
+      return unauthorizedResponse();
+    }
+
+    console.error("Orchestrator API error:", error);
+
+    const isUserFacing = Boolean(error?.userFacing);
+    const status =
+      isUserFacing && Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+        ? error.status
+        : 500;
+
+    return NextResponse.json(
+      {
+        error: isUserFacing ? error.message : "Internal server error",
+        details:
+          !isUserFacing && process.env.NODE_ENV === "development"
+            ? error.message
+            : undefined,
+      },
+      { status }
+    );
   }
 }

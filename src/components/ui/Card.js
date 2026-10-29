@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
 import { cn } from "./cn";
 
 const SURFACE = {
@@ -22,7 +21,7 @@ const RADIUS = {
  * Props:
  *  - variant: "default" | "strong" | "panel" | "bare"
  *  - radius: "card" | "panel"
- *  - interactive: adds a subtle hover-lift (motion)
+ *  - interactive: adds a subtle CSS hover lift
  *  - glow: hex color for a soft top accent glow
  */
 export function Card({
@@ -34,11 +33,12 @@ export function Card({
     className,
     ...rest
 }) {
-    const reduce = useReducedMotion();
     const base = cn(
         "relative border backdrop-blur-glass",
         SURFACE[variant] ?? SURFACE.default,
         RADIUS[radius] ?? RADIUS.card,
+        interactive &&
+            "transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none",
         className
     );
 
@@ -49,20 +49,6 @@ export function Card({
             style={{ background: `linear-gradient(90deg, transparent, ${glow}, transparent)` }}
         />
     ) : null;
-
-    if (interactive && !reduce) {
-        return (
-            <motion.div
-                className={base}
-                whileHover={{ y: -3 }}
-                transition={{ type: "spring", stiffness: 300, damping: 24 }}
-                {...rest}
-            >
-                {glowNode}
-                {children}
-            </motion.div>
-        );
-    }
 
     return (
         <div className={base} {...rest}>

@@ -1,65 +1,108 @@
 /**
- * Database Schema for User Provider Configuration
- * 
- * This is a JSON-based local storage implementation.
- * For production, migrate to PostgreSQL/MongoDB with proper encryption.
+ * Server-side provider schema and helpers.
+ *
+ * Keep lightweight catalog constants in provider-catalog.js so client
+ * components do not pull validation code into their bundle.
  */
 
-import { z } from "zod";
+import { DEFAULT_MODELS, PROVIDER_INFO, PROVIDERS } from "./provider-catalog.js";
+import {
+  addIssue,
+  parseWithSchema,
+  requiredString,
+  validationFailure,
+  validationSuccess,
+} from "./validation.js";
 
-// Provider types supported
-export const PROVIDERS = {
-  OPENAI: "openai",
-  QWEN: "qwen",
-  ANTHROPIC: "anthropic",
-};
+export { DEFAULT_MODELS, PROVIDER_INFO, PROVIDERS };
 
-// User Provider Configuration Schema
-export const userProviderSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().min(1), // In production, link to auth user
-  providerName: z.enum([PROVIDERS.OPENAI, PROVIDERS.QWEN, PROVIDERS.ANTHROPIC]),
-  encryptedApiKey: z.string().min(1), // Encrypted API key
-  selectedModel: z.string().min(1),
-  isActive: z.boolean().default(true),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  metadata: z.object({
-    lastTested: z.string().datetime().optional(),
-    testStatus: z.enum(["success", "failed", "pending"]).optional(),
-    displayName: z.string().optional(),
-  }).optional(),
-});
+const PROVIDER_NAMES = new Set(Object.values(PROVIDERS));
+const TEST_STATUSES = new Set(["success", "failed", "pending"]);
 
-// Default models for each provider
-export const DEFAULT_MODELS = {
-  [PROVIDERS.OPENAI]: "gpt-4o-mini",
-  [PROVIDERS.QWEN]: "qwen/qwen3.7-plus",
-  [PROVIDERS.ANTHROPIC]: "claude-3-5-sonnet-20241022",
-};
+export const userProviderSchema = {
+  safeParse(input) {
+    const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+    const issues = [];
+    const data = {
+      id: requiredString(issues, source.id, "id", "Provider id", 120),
+      userId: requiredString(issues, source.userId, "userId", "User id", 120),
+      providerName: requiredString(
+        issues,
+        source.providerName,
+        "providerName",
+        "Provider",
+        40
+      ),
+      encryptedApiKey: requiredString(
+        issues,
+        source.encryptedApiKey,
+        "encryptedApiKey",
+        "Encrypted API key"
+      ),
+      selectedModel: requiredString(
+        issues,
+        source.selectedModel,
+        "selectedModel",
+        "Model",
+        120
+      ),
+      createdAt: requiredString(issues, source.createdAt, "createdAt", "Created date"),
+      updatedAt: requiredString(issues, source.updatedAt, "updatedAt", "Updated date"),
+    };
 
-// Provider display information
-export const PROVIDER_INFO = {
-  [PROVIDERS.OPENAI]: {
-    name: "OpenAI",
-    icon: "🤖",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-    keyFormat: "sk-...",
-    docsUrl: "https://platform.openai.com/api-keys",
+    if (data.providerName && !PROVIDER_NAMES.has(data.providerName)) {
+      addIssue(issues, ["providerName"], "Unsupported provider");
+    }
+
+    if (source.isActive === undefined) {
+      data.isActive = true;
+    } else if (typeof source.isActive !== "boolean") {
+      addIssue(issues, ["isActive"], "Active must be true or false");
+    } else {
+      data.isActive = source.isActive;
+    }
+
+    if (source.metadata !== undefined) {
+      if (
+        !source.metadata ||
+        typeof source.metadata !== "object" ||
+        Array.isArray(source.metadata)
+      ) {
+        addIssue(issues, ["metadata"], "Metadata must be an object");
+      } else {
+        const metadata = {};
+        if (source.metadata.lastTested !== undefined) {
+          metadata.lastTested = requiredString(
+            issues,
+            source.metadata.lastTested,
+            "metadata",
+            "Last tested"
+          );
+        }
+        if (source.metadata.testStatus !== undefined) {
+          if (!TEST_STATUSES.has(source.metadata.testStatus)) {
+            addIssue(issues, ["metadata"], "Invalid test status");
+          } else {
+            metadata.testStatus = source.metadata.testStatus;
+          }
+        }
+        if (source.metadata.displayName !== undefined) {
+          metadata.displayName = requiredString(
+            issues,
+            source.metadata.displayName,
+            "metadata",
+            "Display name",
+            160
+          );
+        }
+        data.metadata = metadata;
+      }
+    }
+
+    return issues.length ? validationFailure(issues) : validationSuccess(data);
   },
-  [PROVIDERS.QWEN]: {
-    name: "Alibaba Cloud Qwen",
-    icon: "🐉",
-    models: ["qwen/qwen3.7-plus", "qwen/qwen3.5-plus", "qwen/qwen3-plus", "qwen/qwen-turbo"],
-    keyFormat: "sk-or-v1-...",
-    docsUrl: "https://bailian.console.aliyun.com/",
-  },
-  [PROVIDERS.ANTHROPIC]: {
-    name: "Anthropic Claude",
-    icon: "🧠",
-    models: ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-    keyFormat: "sk-ant-...",
-    docsUrl: "https://console.anthropic.com/",
+  parse(input) {
+    return parseWithSchema(this, input);
   },
 };
 

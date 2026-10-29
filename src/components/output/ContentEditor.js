@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Undo2, Redo2, Trash2, X } from "lucide-react";
 import { useContentEditorStore } from "@/store/content-editor-store";
 import { Button } from "@/components/ui/Button";
@@ -52,7 +51,6 @@ function renderPreview(contentText) {
 }
 
 export default function ContentEditor() {
-	const reduce = useReducedMotion();
 	const {
 		contentEditorOpen,
 		contentText,
@@ -64,26 +62,16 @@ export default function ContentEditor() {
 		insertTemplate,
 	} = useContentEditorStore();
 
+	if (!contentEditorOpen) return null;
+
 	return (
-		<AnimatePresence>
-			{contentEditorOpen && (
-				<motion.div
-					className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-					transition={{ duration: 0.18 }}
-				>
-					<div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeContentEditor} aria-hidden />
-					<motion.div
-						role="dialog"
-						aria-modal="true"
-						className="relative flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-panel border border-glass-border-strong bg-navy-800 shadow-glass-xl"
-						initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 12 }}
-						animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-						exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 8 }}
-						transition={{ type: "spring", stiffness: 260, damping: 26 }}
-					>
+		<div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+			<div className="animate-modal-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeContentEditor} aria-hidden />
+			<div
+				role="dialog"
+				aria-modal="true"
+				className="animate-modal-panel relative flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-panel border border-glass-border-strong bg-navy-800 shadow-glass-xl"
+			>
 						{/* Header */}
 						<div className="flex items-center justify-between border-b border-glass-border px-6 py-4">
 							<div>
@@ -180,9 +168,7 @@ export default function ContentEditor() {
 							<div className="text-xs text-ink-subtle">{contentText.length} characters</div>
 							<Button variant="primary" onClick={closeContentEditor}>Done</Button>
 						</div>
-					</motion.div>
-				</motion.div>
-			)}
-		</AnimatePresence>
+			</div>
+		</div>
 	);
 }

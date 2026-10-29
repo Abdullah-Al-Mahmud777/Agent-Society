@@ -1,7 +1,31 @@
 import { extractAgentMentions, scoreAgentRelevance } from './utils';
 import { executeAgent } from './agent-executor';
 import { LLMProviderFactory } from './provider-factory';
-import agentDatabase from './agent-database';
+
+const DEFAULT_AGENT_CONCURRENCY = 3;
+
+function agentConcurrency() {
+  const configured = Number.parseInt(process.env.AI_MAX_CONCURRENT_AGENTS || "", 10);
+  if (!Number.isFinite(configured)) return DEFAULT_AGENT_CONCURRENCY;
+  return Math.min(8, Math.max(1, configured));
+}
+
+export async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
 
 // Orchestrator class to handle the flow
 export class Orchestrator {
@@ -14,44 +38,29 @@ export class Orchestrator {
     agentMemories = {},
     selectedAgents = [], // User-selected agents to prioritize
   }) {
-    // If agents not provided, fetch from database
-    this.agents = agents || agentDatabase.getAll();
+    this.agents = agents || [];
     this.selectedAgents = selectedAgents || [];
     this.apiKey = apiKey;
     this.defaultProvider = defaultProvider;
     this.defaultModel = defaultModel;
     this.executionStrategy = executionStrategy;
     this.agentMemories = agentMemories;
-    this.useDatabase = !agents; // Track if we're using database or passed agents
   }
 
   // Step 1: Discover relevant agents
   discoverAgents(userRequest) {
-    // Only refresh from database if we're in database mode
-    if (this.useDatabase) {
-      this.agents = agentDatabase.getAll();
-      console.log("Using agents from database:", this.agents.length);
-    } else {
-      console.log("Using passed agents:", this.agents.length);
-    }
-    
     // If user has selected specific agents, use those directly
     if (this.selectedAgents && this.selectedAgents.length > 0) {
-      console.log("Using user-selected agents:", this.selectedAgents.map(a => a.name));
-      console.log("Available agents for matching:", this.agents.map(a => ({ id: a.id, name: a.name })));
-      
       // Filter selected agents to ensure they're in the available agents list
-      const availableSelectedAgents = this.selectedAgents.filter(selected => 
-        this.agents.some(agent => agent.id === selected.id)
+      const selectedIds = this.selectedAgents
+        .map((selected) => (typeof selected === "string" ? selected : selected?.id))
+        .filter(Boolean);
+      const availableSelectedAgents = this.agents.filter((agent) =>
+        selectedIds.includes(agent.id)
       );
       
-      console.log("Matched selected agents:", availableSelectedAgents.map(a => a.name));
-      
       if (availableSelectedAgents.length > 0) {
-        console.log("Final selected agents count:", availableSelectedAgents.length);
         return availableSelectedAgents;
-      } else {
-        console.log("Selected agents not found in available agents, falling back to auto-discovery");
       }
     }
     
@@ -60,16 +69,12 @@ export class Orchestrator {
     
     // If no enabled agents, use all available agents
     if (enabledAgents.length === 0) {
-      console.log("No enabled agents found, using all agents");
       enabledAgents = this.agents;
     }
     
     if (enabledAgents.length === 0) {
-      console.log("No agents available at all");
       return [];
     }
-
-    console.log("Available agents:", enabledAgents.map(a => ({ name: a.name, enabled: a.isEnabled })));
 
     // First check for direct mentions
     const mentionedAgentIds = extractAgentMentions(userRequest, enabledAgents);
@@ -83,8 +88,6 @@ export class Orchestrator {
       score: scoreAgentRelevance(userRequest, agent),
     }));
 
-    console.log("Agent scores:", scoredAgents.map(s => ({ name: s.agent.name, score: s.score })));
-
     // Filter agents with positive score, sort descending, take up to 5
     const relevantAgents = scoredAgents
       .filter(({ score }) => score > 0)
@@ -94,7 +97,6 @@ export class Orchestrator {
     
     // If no agents scored positively, return top agent anyway
     if (relevantAgents.length === 0 && scoredAgents.length > 0) {
-      console.log("No agents scored positively, returning top agent");
       return [scoredAgents[0].agent];
     }
     
@@ -116,8 +118,10 @@ export class Orchestrator {
   // Step 3: Execute agents
   async executeAgents(relevantAgents, userRequest, globalContext = '') {
     if (this.executionStrategy === 'parallel') {
-      return Promise.all(
-        relevantAgents.map(agent =>
+      return mapWithConcurrency(
+        relevantAgents,
+        agentConcurrency(),
+        (agent) =>
           executeAgent({
             agent,
             userRequest,
@@ -125,7 +129,6 @@ export class Orchestrator {
             apiKey: this.apiKey,
             agentMemory: this.agentMemories[agent.id],
           })
-        )
       );
     } else { // sequential
       const outputs = [];
@@ -196,7 +199,20 @@ Consider:
     }
 
     const agentOutputs = await this.executeAgents(relevantAgents, userRequest, globalContext);
-    const finalResponse = await this.synthesizeFinalResponse(userRequest, agentOutputs);
+    const successfulOutputs = agentOutputs.filter((output) => output.success);
+
+    if (successfulOutputs.length === 0) {
+      return {
+        success: false,
+        error:
+          agentOutputs.map((output) => output.error).filter(Boolean).join(" | ") ||
+          "All agents failed to produce a response.",
+        relevantAgents: relevantAgents.map(a => ({ id: a.id, name: a.name })),
+        agentOutputs,
+      };
+    }
+
+    const finalResponse = await this.synthesizeFinalResponse(userRequest, successfulOutputs);
 
     return {
       success: true,
