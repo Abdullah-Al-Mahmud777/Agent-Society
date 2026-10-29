@@ -192,29 +192,23 @@ function MessageList({
               {agentsLoading
                 ? "Loading your agent society..."
                 : noAgents
-                  ? "Create an agent first, then bring a question, idea, or task."
+                  ? "Your society has no agents yet."
                   : `${agents.length} agent${agents.length === 1 ? "" : "s"} ready to collaborate. Ask a question or start with a prompt.`}
             </p>
           </div>
 
           {noAgents && (
-            <a
-              href="/builder"
-              className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)] transition hover:bg-[var(--app-warning)]/15"
-            >
+            <div className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)]">
               <Users className="h-4 w-4" />
-              Open Agent Builder to create your first agent
-            </a>
+              No agents available yet
+            </div>
           )}
 
           {noProvider && (
-            <a
-              href="/providers"
-              className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)] transition hover:bg-[var(--app-warning)]/15"
-            >
+            <div className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)]">
               <AlertCircle className="h-4 w-4" />
-              Add an active provider to start receiving replies
-            </a>
+              No active provider configured
+            </div>
           )}
 
           <div className="grid gap-2 sm:grid-cols-2">

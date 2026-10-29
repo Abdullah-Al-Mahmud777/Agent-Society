@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS=--max-old-space-size=1024 next dev --disable-source-maps",
+    "dev:full": "next dev",
     "build": "next build",
     "start": "next start",
+    "serve": "npm run build && npm start",
     "lint": "eslint",
     "kill-port": "lsof -ti:3000 | xargs kill -9",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
@@ -25,8 +27,7 @@
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "server-only": "^0.0.1",
-    "zustand": "^5.0.14"
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

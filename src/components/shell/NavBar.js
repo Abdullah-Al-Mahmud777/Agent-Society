@@ -3,14 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, Users, Wrench, Home, Settings, Menu, X } from "lucide-react";
+import { Sparkles, Users, Home, Menu, X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
 const LINKS = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/builder", label: "Builder", icon: Wrench },
     { href: "/society", label: "Society", icon: Users },
-    { href: "/providers", label: "Providers", icon: Settings },
 ];
 
 function isActive(pathname, href) {

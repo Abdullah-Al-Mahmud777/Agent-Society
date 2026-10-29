@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Wrench, Brain, Network, History } from "lucide-react";
+import { ArrowRight, Brain, Network, History } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import AgentConstellation from "./AgentConstellation";
 
@@ -53,13 +53,6 @@ export default function Hero() {
                             >
                                 Enter the Society
                                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                            </Link>
-                            <Link
-                                href="/builder"
-                                className="inline-flex items-center justify-center gap-2 rounded-pill border border-glass-border px-6 py-3 text-sm font-medium text-ink-muted transition-colors hover:border-glass-border-strong hover:bg-glass hover:text-ink"
-                            >
-                                <Wrench className="h-4 w-4" />
-                                Build agents
                             </Link>
                         </div>
                     </div>

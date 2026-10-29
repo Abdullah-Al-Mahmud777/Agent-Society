@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Bot,
   Check,
-  ChevronRight,
   LogOut,
   MessageSquarePlus,
   Moon,
@@ -14,12 +13,10 @@ import {
   Pencil,
   Plus,
   Search,
-  Settings,
   Sparkles,
   Sun,
   Trash2,
   Users,
-  Wrench,
   X,
 } from "lucide-react";
 import { cn } from "@/components/ui/cn";
@@ -89,7 +86,6 @@ function ChatSidebar({
   selectedAgentIds,
   onToggleAgent,
   agentsLoading,
-  provider,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -271,14 +267,10 @@ function ChatSidebar({
                 ))}
               </div>
             ) : agents.length === 0 ? (
-              <Link
-                href="/builder"
-                prefetch={false}
-                className="flex items-center gap-2 rounded-lg px-2.5 py-2.5 text-xs text-[var(--app-muted)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
-              >
+              <div className="flex items-center gap-2 rounded-lg px-2.5 py-2.5 text-xs text-[var(--app-muted)]">
                 <Plus className="h-3.5 w-3.5" />
-                Create your first agent
-              </Link>
+                No agents yet
+              </div>
             ) : (
               agents.map((agent) => {
                 const selected = selectedAgentIds.includes(agent.id);
@@ -324,12 +316,6 @@ function ChatSidebar({
       </div>
 
       <div className={cn("hidden flex-col items-center gap-1 px-2 py-2", collapsed && "lg:flex")}>
-        <MiniAction label="Builder" href="/builder">
-          <Wrench className="h-4 w-4" />
-        </MiniAction>
-        <MiniAction label="Providers" href="/providers">
-          <Settings className="h-4 w-4" />
-        </MiniAction>
         <MiniAction label={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </MiniAction>
@@ -340,24 +326,6 @@ function ChatSidebar({
 
       <div className={cn("border-t border-[var(--app-border)] p-3", collapsed && "lg:hidden")}>
         <div className={cn("mb-2 space-y-0.5", collapsed && "lg:hidden")}>
-          <Link
-            href="/builder"
-            prefetch={false}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-xs text-[var(--app-muted)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
-          >
-            <Wrench className="h-3.5 w-3.5" />
-            Agent Builder
-            <ChevronRight className="ml-auto h-3.5 w-3.5 text-[var(--app-faint)]" />
-          </Link>
-          <Link
-            href="/providers"
-            prefetch={false}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-xs text-[var(--app-muted)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
-          >
-            <Settings className="h-3.5 w-3.5" />
-            Provider settings
-            {!provider && <span className="ml-auto text-[10px] text-[var(--app-warning)]">Set up</span>}
-          </Link>
           <button
             type="button"
             onClick={toggleTheme}

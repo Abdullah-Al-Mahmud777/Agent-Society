@@ -7,19 +7,18 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        USER INTERFACE                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │  Society     │  │  Agent       │  │  Providers   │         │
-│  │  Page        │  │  Builder     │  │  Page        │         │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
-│         │                  │                  │                 │
-└─────────┼──────────────────┼──────────────────┼─────────────────┘
-          │                  │                  │
-          ▼                  ▼                  ▼
+│  ┌──────────────┐                                               │
+│  │  Society     │                                               │
+│  │  Page        │                                               │
+│  └──────┬───────┘                                               │
+│         │                                                       │
+└─────────┼                                                       ┘
+          │
+          ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      NEXT.JS FRONTEND                            │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  React Components (Lucide Icons, Motion Animations)     │   │
-│  │  Zustand State Management                                 │   │
 │  │  Session-aware ChatGPT-style workspace                   │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
@@ -29,13 +28,13 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 │                      API ROUTES (Next.js)                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │ /api/auth    │  │ /api/db      │  │ /api/        │         │
-│  │ register/    │  │ agents/      │  │ providers    │         │
+│  │ register/    │  │ agents/      │  │ agent-chat   │         │
 │  │ login/session│  │ conversations│  │ orchestrator │         │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
 │         │                  │                  │                 │
 │  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼───────┐         │
-│  │ Session +    │  │ User-scoped  │  │ Provider     │         │
-│  │ rate limits  │  │ persistence  │  │ Management   │         │
+│  │ Session +    │  │ User-scoped  │  │ AI provider  │         │
+│  │ rate limits  │  │ persistence  │  │ factory      │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -70,9 +69,6 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 ### Frontend Layer
 - **Auth Pages**: `/login` and `/register` with validation, rate-limit feedback, and dark/light themes
 - **Society Page**: ChatGPT-style workspace with collapsible history, search, agent selection, conversation management, and responsive mobile drawer
-- **Agent Builder**: UI for creating and configuring custom agents
-- **Providers Page**: UI for managing LLM provider configurations
-- **State Management**: Zustand for the in-session agent index, hydrated from Turso
 - **Persistence**: Turso is the source of truth for users, sessions, agents, providers, conversations, messages, and memory; browser storage is not used for user data
 
 ### Auth and API Layer
@@ -80,8 +76,6 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 - **User Settings Route**: `/api/user/settings` for theme and preferences
 - **Database Routes**: `/api/db/agents`, `/api/db/conversations`, `/api/db/memories`, `/api/db/status`
 - **Agent Chat Route**: `/api/agent-chat` - Handles chat requests with domain enforcement
-- **Agent Execution Route**: `/api/agents/execute` - Executes agent tasks
-- **Providers Route**: `/api/providers` - Manages encrypted provider configurations and testing
 - **Orchestrator Route**: `/api/orchestrator/chat` - Runs the selected agents and persists the run
 
 ### Provider Factory Layer
@@ -116,7 +110,7 @@ User Input → Frontend → API Route → Provider Factory → LLM Provider → 
 - **Fallback Models**: Automatic model switching on errors
 - **Retry Logic**: Exponential backoff for transient errors
 - **Encrypted Provider Keys**: AES-256-GCM encryption on the server; plaintext keys never reach the browser
-- **Custom Agents**: Build specialized agents with specific domains
+- **Custom Agents**: Specialized agents with their own domains, personalities, and models
 
 ## Getting Started
 
@@ -135,9 +129,7 @@ User Input → Frontend → API Route → Provider Factory → LLM Provider → 
 5. Verify the connection and CRUD operations: `npm run db:verify`
 6. Run development server: `npm run dev`
 7. Open `/register` to create the first account, then sign in at `/login`
-8. Configure a provider at `/providers`
-9. Create agents at `/builder`
-10. Interact with the society at `/society`
+8. Interact with the society at `/society`
 
 The first registered account claims any legacy records previously stored under
 the server-side `default-user` ID. Browser `localStorage` is intentionally not
@@ -163,10 +155,9 @@ The concept draws from the idea of a "society of mind," where multiple specializ
 
 Agent Society is a multi-agent AI system that allows users to:
 
-- **Create Custom Agents**: Build specialized AI agents with unique expertise, personalities, and domains through an intuitive builder interface
 - **Multi-Agent Orchestration**: Run multiple agents in parallel or sequentially to solve complex problems collaboratively
 - **Domain Enforcement**: Ensure agents only respond within their designated domains for accurate, specialized responses
-- **Provider Flexibility**: Switch between multiple LLM providers (OpenAI, Anthropic, Qwen via OpenRouter) with automatic fallback
+- **Provider Flexibility**: Supports multiple LLM providers (OpenAI, Anthropic, Qwen via OpenRouter) with automatic fallback
 - **Agent Memory**: Maintain conversation history and execution context for each agent
 - **Interactive Society**: Chat with your agent society in real-time with a modern, responsive UI
 
@@ -177,7 +168,6 @@ The project was built in several phases:
 **Phase 1: Core Architecture**
 - Set up Next.js 16 project with TypeScript and Turbopack
 - Designed the multi-layer architecture (Frontend → API → Provider Factory → LLM)
-- Implemented the Zustand store for agent and provider state management with persistence
 - Created the agent database with indexing for efficient queries
 
 **Phase 2: Provider Factory**
@@ -187,7 +177,6 @@ The project was built in several phases:
 - Implemented fallback model switching on errors
 
 **Phase 3: Agent System**
-- Created the agent builder UI with form validation
 - Implemented agent discovery using relevance scoring:
   $$score = w_1 \cdot \text{keyword\_match} + w_2 \cdot \text{semantic\_similarity} + w_3 \cdot \text{domain\_match}$$
 - Built the orchestrator for parallel and sequential agent execution
@@ -195,15 +184,12 @@ The project was built in several phases:
 
 **Phase 4: User Interface**
 - Built the Society page for agent interaction
-- Created the Agent Builder for creating custom agents
-- Implemented the Providers page for API key management
 - Added responsive design with mobile support
 - Integrated animations and transitions with Motion library
 
 **Phase 5: API Routes**
 - Built `/api/agent-chat` for single agent interactions
 - Created `/api/orchestrator/chat` for multi-agent orchestration
-- Implemented `/api/providers` for provider management and testing
 - Added domain enforcement to ensure agents stay within their expertise
 
 **Phase 6: Security & Encryption**
@@ -217,7 +203,7 @@ The project was built in several phases:
 Different LLM providers have vastly different API structures. OpenAI uses a specific format, Anthropic has its own structure, and Qwen (via OpenRouter) adds another layer of complexity. I solved this by creating a unified interface through the Provider Factory pattern, normalizing all provider responses to a consistent format.
 
 **2. State Persistence & Rehydration**
-Managing complex state across page reloads was challenging. Zustand's persistence middleware helped, but I had to carefully handle rehydration timing to prevent race conditions. I implemented proper loading states and rehydration checks to ensure the UI only renders when state is ready.
+Managing complex state across page reloads was challenging. Client-side stores were dropped in favour of server-driven state from Turso, with proper loading states and hydration checks so the UI only renders once state is ready.
 
 **3. Agent Discovery Accuracy**
 Initially, agent discovery was too simplistic—just matching keywords. I improved this by implementing a multi-factor scoring system considering keyword matches, semantic similarity, and domain expertise. The challenge was tuning the weights ($w_1, w_2, w_3$) to balance precision and recall.
@@ -239,7 +225,7 @@ Working with Next.js 16 (a relatively new version) presented challenges with Tur
 - **Unified Provider Interface**: Successfully abstracted multiple LLM providers into a consistent interface, making it easy to add new providers
 - **Intelligent Agent Discovery**: Built a sophisticated scoring system that accurately matches user requests to the most relevant agents
 - **Robust Error Handling**: Implemented comprehensive error tracking and retry logic that makes the system resilient to API failures
-- **Modern Tech Stack**: Leveraged Next.js 16, Turbopack, Zustand, and Tailwind CSS to build a performant, modern application
+- **Modern Tech Stack**: Leveraged Next.js 16, Turbopack, and Tailwind CSS to build a performant, modern application
 - **Security First**: Implemented proper encryption for sensitive data while maintaining usability
 - **Responsive Design**: Created a fully responsive UI that works seamlessly on desktop and mobile devices
 - **Real-time Orchestration**: Built a system that can execute multiple agents in parallel and synthesize their responses coherently
@@ -261,7 +247,7 @@ Building this project was a tremendous learning experience across several domain
 - Building fallback mechanisms for model failures
 
 **3. State Management & Persistence**
-- Using Zustand for complex state management with persistence middleware
+- Keeping Turso as the single source of truth for agents and conversations
 - Implementing local storage encryption for API keys
 - Designing database-like indexing for agent queries
 
