@@ -64,6 +64,10 @@ export async function verifyPassword(password, storedHash) {
     return false;
   }
 
+  // Reject non-canonical base64url (e.g. mangled trailing characters that would
+  // otherwise decode to the same bytes and still verify).
+  if (encode(salt) !== parts[4] || encode(expected) !== parts[5]) return false;
+
   if (expected.length !== KEY_LENGTH) return false;
 
   try {

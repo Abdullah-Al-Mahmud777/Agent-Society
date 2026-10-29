@@ -30,9 +30,11 @@ test("rejects malformed and mismatched password hashes", async () => {
   assert.equal(await verifyPassword(null, "scrypt$16384$8$1$x$y"), false);
 
   const hash = await hashPassword("CorrectHorse123!");
-  const replacement = hash.endsWith("A") ? "B" : "A";
-  const tampered = `${hash.slice(0, -1)}${replacement}`;
-  assert.equal(await verifyPassword("CorrectHorse123!", tampered), false);
+  const parts = hash.split("$");
+  const digest = parts[5];
+  parts[5] = `${digest[0] === "A" ? "B" : "A"}${digest.slice(1)}`;
+  assert.equal(await verifyPassword("CorrectHorse123!", parts.join("$")), false);
+  assert.equal(await verifyPassword("CorrectHorse123!", `${hash}A`), false);
 });
 
 test("dummy verification never authenticates an unknown account", async () => {
