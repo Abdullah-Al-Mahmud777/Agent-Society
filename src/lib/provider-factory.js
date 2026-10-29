@@ -12,6 +12,12 @@ import OpenAI from "openai";
 import { decryptApiKey } from "./encryption";
 import { PROVIDERS } from "./db-schema";
 import { QWEN_BASE_URL } from "@/providers/qwenProvider";
+import { AI_RETRY_CONFIG } from "./ai-retry";
+import {
+  createGeminiClient as makeGeminiClient,
+  generateGeminiContent,
+  normalizeGeminiModel,
+} from "@/providers/geminiProvider";
 
 /**
  * Provider Factory - Creates LLM client instances dynamically
@@ -23,18 +29,12 @@ export class LLMProviderFactory {
       || (userProviderConfig?.encryptedApiKey ? decryptApiKey(userProviderConfig.encryptedApiKey) : "");
     this.provider = userProviderConfig?.providerName || userProviderConfig?.provider;
     this.model = userProviderConfig?.selectedModel || userProviderConfig?.model;
-    // #region debug-point C:factory-config
-    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"C",location:"src/lib/provider-factory.js:25",msg:"[DEBUG] Provider factory initialized",data:{configKeys:Object.keys(userProviderConfig||{}),providerName:userProviderConfig?.providerName??null,provider:userProviderConfig?.provider??null,selectedModel:userProviderConfig?.selectedModel??null,model:userProviderConfig?.model??null,hasEncryptedApiKey:Boolean(userProviderConfig?.encryptedApiKey),hasPlainApiKey:Boolean(userProviderConfig?.apiKey),resolvedProvider:this.provider??null,resolvedModel:this.model??null,resolvedApiKeyLength:this.apiKey?.length??0},ts:Date.now()})}).catch(()=>{});
-    // #endregion
   }
 
   /**
    * Get the appropriate LLM client instance
    */
   getClient() {
-    // #region debug-point D:factory-branch
-    fetch("http://127.0.0.1:7777/event",{method:"POST",body:JSON.stringify({sessionId:"orchestrator-500",runId:"post-fix",hypothesisId:"D",location:"src/lib/provider-factory.js:35",msg:"[DEBUG] Provider factory selecting client",data:{resolvedProvider:this.provider??null,resolvedModel:this.model??null},ts:Date.now()})}).catch(()=>{});
-    // #endregion
     switch (this.provider) {
       case PROVIDERS.QWEN:
       case "qwen":
@@ -50,6 +50,10 @@ export class LLMProviderFactory {
 
       case "openrouter":
         return this.createOpenRouterClient();
+
+      case PROVIDERS.GEMINI:
+      case "gemini":
+        return this.createGeminiClient();
       
       default:
         throw new Error(`Unsupported provider: ${this.provider}`);
@@ -64,6 +68,8 @@ export class LLMProviderFactory {
       const qwen = new OpenAI({
         apiKey: this.apiKey,
         baseURL: QWEN_BASE_URL,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
       });
       
       return {
@@ -99,7 +105,11 @@ export class LLMProviderFactory {
    */
   createOpenAIClient() {
     try {
-      const openai = new OpenAI({ apiKey: this.apiKey });
+      const openai = new OpenAI({
+        apiKey: this.apiKey,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
+      });
       
       return {
         provider: PROVIDERS.OPENAI,
@@ -133,7 +143,11 @@ export class LLMProviderFactory {
    */
   createAnthropicClient() {
     try {
-      const anthropic = new Anthropic({ apiKey: this.apiKey });
+      const anthropic = new Anthropic({
+        apiKey: this.apiKey,
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
+      });
       
       return {
         provider: PROVIDERS.ANTHROPIC,
@@ -165,6 +179,8 @@ export class LLMProviderFactory {
       const openrouter = new OpenAI({
         apiKey: this.apiKey,
         baseURL: "https://openrouter.ai/api/v1",
+        timeout: AI_RETRY_CONFIG.requestTimeoutMs,
+        maxRetries: 1,
       });
       
       return {
@@ -190,6 +206,39 @@ export class LLMProviderFactory {
       };
     } catch (error) {
       throw new Error(`Failed to initialize OpenRouter client: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create Google Gemini client (using @google/genai SDK)
+   * Same unified interface: generateContent(prompt, { systemPrompt, temperature, maxTokens })
+   * So Qwen key slot <-> Gemini key slot are interchangeable.
+   */
+  createGeminiClient() {
+    try {
+      const ai = makeGeminiClient(this.apiKey);
+      const model = normalizeGeminiModel(this.model);
+
+      return {
+        provider: PROVIDERS.GEMINI,
+        client: ai,
+        model,
+
+        async generateContent(prompt, options = {}) {
+          return generateGeminiContent({
+            ai,
+            contents: prompt,
+            model,
+            config: {
+              ...(options.systemPrompt ? { systemInstruction: options.systemPrompt } : {}),
+              temperature: options.temperature ?? 0.7,
+              maxOutputTokens: options.maxTokens ?? 2048,
+            },
+          });
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to initialize Gemini client: ${error.message}`);
     }
   }
 

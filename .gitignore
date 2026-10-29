@@ -42,3 +42,9 @@ next-env.d.ts
 ROADMAP.md
 
 .dbg/
+# local database files
+.data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
