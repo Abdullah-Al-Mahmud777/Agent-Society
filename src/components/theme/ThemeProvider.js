@@ -1,15 +1,61 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
+
+const STORAGE_KEY = "agent_society_theme";
+const CHANGE_EVENT = "agent-society-theme-changed";
 
 const ThemeContext = createContext({
-  theme: "dark",
+  theme: "light",
   setTheme: () => {},
   toggleTheme: () => {},
 });
 
-export function ThemeProvider({ initialTheme = "dark", children }) {
-  const [theme, setThemeState] = useState(initialTheme === "light" ? "light" : "dark");
+function normalize(value) {
+  return value === "light" || value === "dark" ? value : null;
+}
+
+function readStored() {
+  try {
+    return normalize(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(theme) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, theme);
+  } catch {
+    // storage unavailable (private mode) — cookie still keeps SSR in sync
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+function subscribe(onChange) {
+  window.addEventListener(CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function ThemeProvider({ initialTheme = "light", children }) {
+  const fallback = initialTheme === "dark" ? "dark" : "light";
+
+  const theme = useSyncExternalStore(
+    subscribe,
+    () => readStored() || fallback,
+    () => fallback
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -18,29 +64,12 @@ export function ThemeProvider({ initialTheme = "dark", children }) {
   }, [theme]);
 
   const setTheme = useCallback((nextTheme) => {
-    const normalized = nextTheme === "light" ? "light" : "dark";
-    setThemeState(normalized);
-    void fetch("/api/user/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ theme: normalized }),
-    }).catch(() => {});
+    writeStored(normalize(nextTheme) || "light");
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((current) => {
-      const next = current === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = next;
-      document.documentElement.style.colorScheme = next;
-      document.cookie = `agent_society_theme=${next}; path=/; max-age=31536000; samesite=lax`;
-      void fetch("/api/user/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: next }),
-      }).catch(() => {});
-      return next;
-    });
-  }, []);
+    writeStored(theme === "dark" ? "light" : "dark");
+  }, [theme]);
 
   const value = useMemo(
     () => ({ theme, setTheme, toggleTheme }),

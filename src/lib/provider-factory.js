@@ -20,6 +20,42 @@ import {
 } from "@/providers/geminiProvider";
 
 /**
+ * Flattens chat history into alternating {role, content} turns, merging
+ * consecutive same-role entries so providers that require strict alternation
+ * (Anthropic, Gemini) accept the payload.
+ */
+function normalizeTurns(history) {
+  const turns = [];
+  for (const entry of Array.isArray(history) ? history : []) {
+    const role =
+      entry?.role === "assistant" || entry?.role === "model"
+        ? "assistant"
+        : entry?.role === "user"
+          ? "user"
+          : null;
+    const content = typeof entry?.content === "string" ? entry.content.trim() : "";
+    if (!role || !content) continue;
+    const last = turns[turns.length - 1];
+    if (last && last.role === role) last.content += `\n\n${content}`;
+    else turns.push({ role, content });
+  }
+  return turns;
+}
+
+/**
+ * History plus the new user prompt, always ending with a user turn.
+ * Without `options.history` this returns a single turn, so single-shot calls
+ * behave exactly as before.
+ */
+function buildTurns(options, prompt) {
+  const turns = normalizeTurns(options.history);
+  const last = turns[turns.length - 1];
+  if (last && last.role === "user") last.content += `\n\n${prompt}`;
+  else turns.push({ role: "user", content: prompt });
+  return turns;
+}
+
+/**
  * Provider Factory - Creates LLM client instances dynamically
  */
 export class LLMProviderFactory {
@@ -80,7 +116,7 @@ export class LLMProviderFactory {
         async generateContent(prompt, options = {}) {
           const messages = [
             ...(options.systemPrompt ? [{ role: "system", content: options.systemPrompt }] : []),
-            { role: "user", content: prompt },
+            ...buildTurns(options, prompt).map((turn) => ({ ...turn })),
           ];
           
           const response = await qwen.chat.completions.create({
@@ -119,7 +155,7 @@ export class LLMProviderFactory {
         async generateContent(prompt, options = {}) {
           const messages = [
             ...(options.systemPrompt ? [{ role: "system", content: options.systemPrompt }] : []),
-            { role: "user", content: prompt },
+            ...buildTurns(options, prompt).map((turn) => ({ ...turn })),
           ];
           
           const response = await openai.chat.completions.create({
@@ -155,12 +191,17 @@ export class LLMProviderFactory {
         model: this.model,
         
         async generateContent(prompt, options = {}) {
+          const turns = buildTurns(options, prompt).filter(
+            (turn) => turn.role !== "system"
+          );
+          if (turns[0]?.role === "assistant") turns.shift();
+
           const response = await anthropic.messages.create({
             model: this.model,
             max_tokens: options.maxTokens ?? 2048,
             temperature: options.temperature ?? 0.7,
             system: options.systemPrompt,
-            messages: [{ role: "user", content: prompt }],
+            messages: turns.map((turn) => ({ ...turn })),
           });
           
           return response.content[0].text;
@@ -191,7 +232,7 @@ export class LLMProviderFactory {
         async generateContent(prompt, options = {}) {
           const messages = [
             ...(options.systemPrompt ? [{ role: "system", content: options.systemPrompt }] : []),
-            { role: "user", content: prompt },
+            ...buildTurns(options, prompt).map((turn) => ({ ...turn })),
           ];
           
           const response = await openrouter.chat.completions.create({
@@ -225,9 +266,18 @@ export class LLMProviderFactory {
         model,
 
         async generateContent(prompt, options = {}) {
+          const turns = buildTurns(options, prompt);
+          const contents =
+            turns.length === 1 && turns[0].role === "user"
+              ? turns[0].content
+              : turns.map((turn) => ({
+                  role: turn.role === "assistant" ? "model" : "user",
+                  parts: [{ text: turn.content }],
+                }));
+
           return generateGeminiContent({
             ai,
-            contents: prompt,
+            contents,
             model,
             config: {
               ...(options.systemPrompt ? { systemInstruction: options.systemPrompt } : {}),

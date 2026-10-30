@@ -34,7 +34,7 @@ export const metadata = {
 export default async function RootLayout({ children }) {
 	const cookieStore = await cookies();
 	const theme =
-		cookieStore.get("agent_society_theme")?.value === "light" ? "light" : "dark";
+		cookieStore.get("agent_society_theme")?.value === "dark" ? "dark" : "light";
 
 	return (
 		<html

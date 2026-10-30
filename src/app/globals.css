@@ -375,6 +375,158 @@ select {
   background-clip: content-box;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Builder studio — black dark mode + white light mode                         */
+/* -------------------------------------------------------------------------- */
+
+.studio {
+  color: var(--app-text);
+  background-color: var(--app-bg);
+}
+
+.studio--dark {
+  --app-bg: #212121;
+  --app-bg-elevated: #262626;
+  --app-sidebar: #1c1c1c;
+  --app-surface: #2f2f2f;
+  --app-surface-hover: #383838;
+  --app-border: rgba(255, 255, 255, 0.14);
+  --app-border-strong: rgba(255, 255, 255, 0.3);
+  --app-text: #ffffff;
+  --app-muted: #a3a3a6;
+  --app-subtle: #8a8a8e;
+  --app-faint: #787880;
+  --app-accent: #ffffff;
+  --app-accent-hover: #d4d4d4;
+  --app-user-bubble: #303030;
+  --app-code: #171717;
+  --app-danger: #f87171;
+  --app-warning: #fbbf24;
+  --app-input: #2f2f2f;
+  --app-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+
+  --studio-on-accent: #000000;
+  --studio-header-bg: rgba(33, 33, 33, 0.9);
+  --studio-chip-bg: rgba(33, 33, 33, 0.86);
+  --studio-dot: rgba(255, 255, 255, 0.13);
+  --studio-scroll: rgba(255, 255, 255, 0.26);
+  --studio-scroll-hover: rgba(255, 255, 255, 0.42);
+}
+
+.studio--light {
+  --app-bg: #ffffff;
+  --app-bg-elevated: #fbfbfc;
+  --app-sidebar: #f7f7f8;
+  --app-surface: #f4f4f5;
+  --app-surface-hover: #ececee;
+  --app-border: rgba(0, 0, 0, 0.12);
+  --app-border-strong: rgba(0, 0, 0, 0.26);
+  --app-text: #000000;
+  --app-muted: #52525b;
+  --app-subtle: #6b6b73;
+  --app-faint: #8e8e96;
+  --app-accent: #000000;
+  --app-accent-hover: #262626;
+  --app-user-bubble: #f1f1f2;
+  --app-code: #f4f4f5;
+  --app-danger: #dc2626;
+  --app-warning: #92400e;
+  --app-input: #ffffff;
+  --app-shadow: 0 24px 80px rgba(0, 0, 0, 0.1);
+
+  --studio-on-accent: #ffffff;
+  --studio-header-bg: rgba(255, 255, 255, 0.92);
+  --studio-chip-bg: rgba(255, 255, 255, 0.86);
+  --studio-dot: rgba(0, 0, 0, 0.13);
+  --studio-scroll: rgba(0, 0, 0, 0.24);
+  --studio-scroll-hover: rgba(0, 0, 0, 0.38);
+}
+
+:where(.studio, .studio *) {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    fill 0.2s ease,
+    stroke 0.2s ease;
+}
+
+.studio * {
+  scrollbar-color: var(--studio-scroll) transparent;
+}
+
+.studio *::-webkit-scrollbar-thumb {
+  background: var(--studio-scroll);
+  background-clip: content-box;
+}
+
+.studio *::-webkit-scrollbar-thumb:hover {
+  background: var(--studio-scroll-hover);
+  background-clip: content-box;
+}
+
+.wf-canvas {
+  background-image: radial-gradient(var(--studio-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+.wf-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.wf-node > .wf-node-card {
+  transition:
+    transform 0.18s ease,
+    fill 0.2s ease,
+    stroke 0.2s ease;
+}
+
+.wf-node:hover > .wf-node-card,
+.wf-node:focus-visible > .wf-node-card {
+  transform: translateY(-2px);
+}
+
+.wf-node:hover .wf-node-hint,
+.wf-node:focus-visible .wf-node-hint {
+  opacity: 1;
+}
+
+.wf-node-hint {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+@keyframes wf-dash {
+  to {
+    stroke-dashoffset: -64;
+  }
+}
+
+.wf-edge-flow {
+  stroke-dasharray: 7 9;
+  animation: wf-dash 2.6s linear infinite;
+}
+
+@keyframes wf-ping-soft {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+.wf-ping {
+  animation: wf-ping-soft 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
 .chat-markdown {
   color: var(--app-text);
   font-size: 0.95rem;

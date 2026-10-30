@@ -17,6 +17,7 @@ import {
   Sun,
   Trash2,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
 import { cn } from "@/components/ui/cn";
@@ -316,6 +317,9 @@ function ChatSidebar({
       </div>
 
       <div className={cn("hidden flex-col items-center gap-1 px-2 py-2", collapsed && "lg:flex")}>
+        <MiniAction label="Agent builder" href="/builder">
+          <Wrench className="h-4 w-4" />
+        </MiniAction>
         <MiniAction label={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </MiniAction>
@@ -326,6 +330,14 @@ function ChatSidebar({
 
       <div className={cn("border-t border-[var(--app-border)] p-3", collapsed && "lg:hidden")}>
         <div className={cn("mb-2 space-y-0.5", collapsed && "lg:hidden")}>
+          <Link
+            href="/builder"
+            prefetch={false}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-xs text-[var(--app-muted)] transition hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            Agent builder
+          </Link>
           <button
             type="button"
             onClick={toggleTheme}
