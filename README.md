@@ -69,6 +69,8 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 ### Frontend Layer
 - **Auth Pages**: `/login` and `/register` with validation, rate-limit feedback, and dark/light themes
 - **Society Page**: ChatGPT-style workspace with collapsible history, search, agent selection, conversation management, and responsive mobile drawer
+- **Builder Page**: `/builder` renders a full-bleed studio workspace (no site nav) with a deep-navy cyberpunk-minimal theme: agent library rail, a Canvas / Configure / Playground tab strip (static SVG workflow preview with glowing teal edges; full agent form; chat playground), and a Providers & Integrations rail with live status, active toggles, stored model pickers, and demo usage meters
+- **Provider Settings Page**: `/providers` with per-provider connection cards, connect/test/update/disconnect flows, live model selection, active-provider management, and a security explainer
 - **Persistence**: Turso is the source of truth for users, sessions, agents, providers, conversations, messages, and memory; browser storage is not used for user data
 
 ### Auth and API Layer
@@ -77,12 +79,20 @@ A multi-agent AI system that allows users to create, configure, and interact wit
 - **Database Routes**: `/api/db/agents`, `/api/db/conversations`, `/api/db/memories`, `/api/db/status`
 - **Agent Chat Route**: `/api/agent-chat` - Handles chat requests with domain enforcement
 - **Orchestrator Route**: `/api/orchestrator/chat` - Runs the selected agents and persists the run
+- **Provider Routes**: `/api/providers` (list, connect with a real connectivity test, update, make active, disconnect) and `/api/providers/models` (live model catalogue per provider or connection)
+- **Builder Test Route**: `/api/builder/test` - Non-persisting playground chat for an agent draft
 
 ### Provider Factory Layer
 - **Client Creation**: Dynamically creates LLM clients based on provider
+- **Multi-Turn History**: Accepts a conversation history so playground and workspace chats keep context
 - **Fallback Models**: Automatically switches models on errors
 - **Retry Logic**: Exponential backoff for transient errors
 - **Error Handling**: Graceful handling of API errors (401, 429, 500)
+
+### Provider Registry
+- **Connection Tests**: Real per-provider authentication checks (`testConnection`) with friendly, user-facing errors
+- **Live Model Catalogues**: `listModels` fetches available models from Google, OpenAI, Anthropic, and OpenRouter - no hard-coded lists
+- **Extension Point**: Adding a provider means adding one registry entry; the Providers page, builder, and chat runtime all pick it up
 
 ### LLM Providers
 - **Google Gemini**: Primary provider with fallback models
@@ -111,6 +121,8 @@ User Input → Frontend → API Route → Provider Factory → LLM Provider → 
 - **Retry Logic**: Exponential backoff for transient errors
 - **Encrypted Provider Keys**: AES-256-GCM encryption on the server; plaintext keys never reach the browser
 - **Custom Agents**: Specialized agents with their own domains, personalities, and models
+- **Agent Builder**: Create, tune, test, and manage agents end to end with a chat playground that exercises the real provider stack
+- **Provider Settings**: Connect an API key, prove it works, pick a model from the vendor's live catalogue, and switch providers at any time
 
 ## Getting Started
 
@@ -129,7 +141,9 @@ User Input → Frontend → API Route → Provider Factory → LLM Provider → 
 5. Verify the connection and CRUD operations: `npm run db:verify`
 6. Run development server: `npm run dev`
 7. Open `/register` to create the first account, then sign in at `/login`
-8. Interact with the society at `/society`
+8. Connect an API key at `/providers` (the key is tested against the vendor, encrypted, and stored server-side)
+9. Build an agent at `/builder`, test it in the playground, and save it
+10. Interact with the society at `/society`
 
 The first registered account claims any legacy records previously stored under
 the server-side `default-user` ID. Browser `localStorage` is intentionally not
@@ -141,6 +155,7 @@ account cannot expose the previous user's data.
 - `npm test` — run all unit tests
 - `npm run test:auth` — password hashing, validation, and rate-limit tests
 - `npm run test:ai` — provider retry and Gemini fallback tests
+- `tests/providers.test.mjs` — provider registry connectors, key format checks, and user-facing connection errors
 - `npm run lint` and `npm run build` — static checks and production build
 
 ## About the Project

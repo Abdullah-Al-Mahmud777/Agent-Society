@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   AlertCircle,
   Bot,
@@ -198,17 +199,25 @@ function MessageList({
           </div>
 
           {noAgents && (
-            <div className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)]">
+            <Link
+              href="/builder"
+              className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)] transition hover:bg-[var(--app-warning)]/20"
+            >
               <Users className="h-4 w-4" />
-              No agents available yet
-            </div>
+              No agents available yet — build one
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
           )}
 
           {noProvider && (
-            <div className="mx-auto mb-6 flex items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)]">
+            <Link
+              href="/providers"
+              className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-xl border border-[var(--app-warning)]/30 bg-[var(--app-warning)]/10 px-4 py-3 text-sm text-[var(--app-warning)] transition hover:bg-[var(--app-warning)]/20"
+            >
               <AlertCircle className="h-4 w-4" />
-              No active provider configured
-            </div>
+              No active provider configured — connect a key
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
           )}
 
           <div className="grid gap-2 sm:grid-cols-2">

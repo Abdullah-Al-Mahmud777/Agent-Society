@@ -6,6 +6,7 @@ import {
 	validationFailure,
 	validationSuccess,
 } from "./validation.js";
+import { DEFAULT_MODELS } from "./provider-catalog.js";
 
 export const AI_PROVIDERS = ["openai", "qwen", "anthropic", "gemini", "openrouter"];
 
@@ -18,11 +19,7 @@ export const PROVIDER_LABELS = {
 };
 
 export const PROVIDER_DEFAULT_MODELS = {
-	openai: "gpt-4o-mini",
-	qwen: "qwen/qwen3.7-plus",
-	anthropic: "claude-3-5-sonnet-20241022",
-	gemini: "gemini-2.5-flash",
-	openrouter: "qwen/qwen3.7-plus",
+	...DEFAULT_MODELS,
 };
 
 export const ICON_OPTIONS = ["🤖", "👑", "🧠", "🎯", "📈", "⚙️", "💬", "🚀", "🧪", "🛡️"];
